@@ -6,14 +6,12 @@ Nathan's version-controlled engineering workflow for Claude Code, Codex, Cursor,
 
 The catalog is available for project-level selection:
 
-| Catalog      | Skills | Stability                             |
-| ------------ | -----: | ------------------------------------- |
-| Engineering  |     18 | Main engineering workflows            |
-| Productivity |      7 | General-purpose workflows             |
-| Misc         |      4 | Narrow utilities                      |
-| In progress  |      6 | Experimental; expect breaking changes |
+| Catalog      | Skills | Purpose                    |
+| ------------ | -----: | -------------------------- |
+| Engineering  |     18 | Main engineering workflows |
+| Productivity |      7 | General-purpose workflows  |
 
-That is 35 installable skills in total. The recommended core workflow is:
+That is 25 installable skills in total. The recommended core workflow is:
 
 | Skill                | Role                                                            |
 | -------------------- | --------------------------------------------------------------- |
