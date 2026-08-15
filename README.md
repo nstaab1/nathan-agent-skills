@@ -4,7 +4,18 @@ Nathan's version-controlled engineering workflow for Claude Code, Codex, Cursor,
 
 This repository has its own Git history. Matt Pocock's [`skills`](https://github.com/mattpocock/skills) repository is configured locally as the `upstream` remote, so upstream changes can be reviewed and selectively incorporated without creating a GitHub fork relationship.
 
-## Included workflow
+## Skill catalog
+
+The full upstream snapshot is available for project-level selection:
+
+| Catalog | Skills | Stability |
+| --- | ---: | --- |
+| Engineering | 18 | Main engineering workflows |
+| Productivity | 7 | General-purpose workflows |
+| Misc | 4 | Narrow utilities |
+| In progress | 6 | Experimental; expect breaking changes |
+
+That is 35 installable skills in total. The original core workflow is:
 
 | Skill | Role |
 | --- | --- |
@@ -38,6 +49,12 @@ For a repeatable project bootstrap, put the exact selection in the consuming pro
 ```
 
 Adjust the skill and agent lists per project. Then run `pnpm skills:install` (or the equivalent command for that project's package manager). Run `/setup-agent-skills` once inside each consuming repository before using `to-spec` or `code-review`.
+
+To install every skill for every detected agent instead:
+
+```bash
+npx skills@latest add nstaab1/nathan-agent-skills --all --full-depth
+```
 
 ## Maintain this source repo
 
