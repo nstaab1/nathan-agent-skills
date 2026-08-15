@@ -2,30 +2,28 @@
 
 Nathan's version-controlled engineering workflow for Claude Code, Codex, Cursor, and other agents supported by the [`skills`](https://skills.sh/) CLI.
 
-This repository has its own Git history. Matt Pocock's [`skills`](https://github.com/mattpocock/skills) repository is configured locally as the `upstream` remote, so upstream changes can be reviewed and selectively incorporated without creating a GitHub fork relationship.
-
 ## Skill catalog
 
-The full upstream snapshot is available for project-level selection:
+The catalog is available for project-level selection:
 
-| Catalog | Skills | Stability |
-| --- | ---: | --- |
-| Engineering | 18 | Main engineering workflows |
-| Productivity | 7 | General-purpose workflows |
-| Misc | 4 | Narrow utilities |
-| In progress | 6 | Experimental; expect breaking changes |
+| Catalog      | Skills | Stability                             |
+| ------------ | -----: | ------------------------------------- |
+| Engineering  |     18 | Main engineering workflows            |
+| Productivity |      7 | General-purpose workflows             |
+| Misc         |      4 | Narrow utilities                      |
+| In progress  |      6 | Experimental; expect breaking changes |
 
-That is 35 installable skills in total. The original core workflow is:
+That is 35 installable skills in total. The recommended core workflow is:
 
-| Skill | Role |
-| --- | --- |
-| `grill-with-docs` | Stress-test a design while maintaining its glossary and ADRs |
-| `to-spec` | Turn the current conversation into an implementation spec |
-| `code-review` | Review a diff independently against standards and its spec |
+| Skill                | Role                                                            |
+| -------------------- | --------------------------------------------------------------- |
+| `grill-with-docs`    | Stress-test a design while maintaining its glossary and ADRs    |
+| `to-spec`            | Turn the current conversation into an implementation spec       |
+| `code-review`        | Review a diff independently against standards and its spec      |
 | `setup-agent-skills` | Configure a consuming repo's tracker and domain-doc conventions |
-| `grilling` | Reusable interview discipline used by `grill-with-docs` |
-| `domain-modeling` | Reusable glossary and ADR discipline used by `grill-with-docs` |
-| `writing-for-agents` | Create and improve skills and agent-facing instructions |
+| `grilling`           | Reusable interview discipline used by `grill-with-docs`         |
+| `domain-modeling`    | Reusable glossary and ADR discipline used by `grill-with-docs`  |
+| `writing-for-agents` | Create and improve skills and agent-facing instructions         |
 
 ## Install into a project
 
@@ -59,14 +57,3 @@ npx skills@latest add nstaab1/nathan-agent-skills --all --full-depth
 ## Maintain this source repo
 
 Edit skills here, commit and push them, then run the consuming project's install or update script. Treat installed project copies as generated output rather than the editing source.
-
-To inspect upstream changes:
-
-```bash
-git fetch upstream --prune
-git diff HEAD upstream/main -- skills
-```
-
-Apply useful changes selectively and adapt them here. The renamed `setup-agent-skills` folder maps to upstream's `setup-matt-pocock-skills`, so compare that skill explicitly when upstream changes it.
-
-See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for the imported snapshot and attribution.
