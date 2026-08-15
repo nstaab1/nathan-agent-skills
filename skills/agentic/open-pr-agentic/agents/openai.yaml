@@ -1,0 +1,6 @@
+interface:
+  display_name: "Open PR Agentic"
+  short_description: "Open a PR and advance issue verification"
+  default_prompt: "Use $open-pr-agentic to open a PR for this committed work."
+policy:
+  allow_implicit_invocation: false

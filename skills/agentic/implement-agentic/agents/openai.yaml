@@ -1,0 +1,6 @@
+interface:
+  display_name: "Implement Agentic"
+  short_description: "Build attended work through review and handoff"
+  default_prompt: "Use $implement-agentic to implement this approved spec or ticket set."
+policy:
+  allow_implicit_invocation: false

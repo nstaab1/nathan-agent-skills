@@ -10,8 +10,9 @@ The catalog is available for project-level selection:
 | ------------ | -----: | -------------------------- |
 | Engineering  |     18 | Main engineering workflows |
 | Productivity |      7 | General-purpose workflows  |
+| Agentic      |      4 | Autonomous coding workflow |
 
-That is 25 installable skills in total. The recommended core workflow is:
+That is 29 installable skills in total. The recommended core workflow is:
 
 | Skill                | Role                                                            |
 | -------------------- | --------------------------------------------------------------- |
@@ -22,6 +23,19 @@ That is 25 installable skills in total. The recommended core workflow is:
 | `grilling`           | Reusable interview discipline used by `grill-with-docs`         |
 | `domain-modeling`    | Reusable glossary and ADR discipline used by `grill-with-docs`  |
 | `writing-for-agents` | Create and improve skills and agent-facing instructions         |
+
+### Agentic coding
+
+The agentic variants preserve the attended skills while adding an autonomous lane:
+
+| Skill                     | Role                                                        |
+| ------------------------- | ----------------------------------------------------------- |
+| `to-tickets-agentic`      | Classify AFK and attended tickets and record test seams     |
+| `implement-agentic`       | Build attended work through TDD, review, and commit         |
+| `implement-afk-agentic`   | Build and ship one agent-ready ticket without a human       |
+| `open-pr-agentic`         | Open the unmerged PR and advance it to human verification   |
+
+The AFK flow moves human gates into ticket preparation and PR review. Anything the ticket does not settle triggers a precise halt instead of an invented decision.
 
 ## Install into a project
 
