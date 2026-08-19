@@ -84,3 +84,32 @@ test('isInternal detects the nested flag that getField cannot see', () => {
   assert.equal(isInternal(setInternal(BASIC, true)), true);
   assert.equal(getField(setInternal(BASIC, true), 'internal'), undefined);
 });
+
+test('setInternal and isInternal agree about a flag under a different parent', () => {
+  const other = `---
+name: x
+description: y
+other:
+  internal: true
+---
+body
+`;
+  // Not our flag: isInternal must not claim it, and setInternal must not eat it.
+  assert.equal(isInternal(other), false);
+  assert.equal(setInternal(other, false), other);
+});
+
+test('setInternal only removes the flag it owns', () => {
+  const both = setInternal(`---
+name: x
+description: y
+other:
+  internal: true
+---
+body
+`, true);
+  assert.equal(isInternal(both), true);
+  const off = setInternal(both, false);
+  assert.equal(isInternal(off), false);
+  assert.match(off, /other:\n {2}internal: true/);
+});

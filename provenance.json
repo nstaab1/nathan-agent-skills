@@ -11,7 +11,8 @@
       ],
       "strip": 0,
       "license": "MIT",
-      "holder": "Matt Pocock"
+      "holder": "Matt Pocock",
+      "skillsRoot": "skills"
     },
     "pstack": {
       "repo": "cursor/plugins",
@@ -24,7 +25,8 @@
       ],
       "strip": 1,
       "license": "MIT",
-      "holder": "Lauren Tan"
+      "holder": "Lauren Tan",
+      "skillsRoot": "skills"
     }
   },
   "skills": {

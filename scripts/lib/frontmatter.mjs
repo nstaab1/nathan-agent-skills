@@ -50,6 +50,14 @@ function isChild(line) {
   return /^\s+\S/.test(line);
 }
 
+/** Index of `internal: true` among the children of the `metadata:` at `meta`. */
+function internalIndex(lines, meta) {
+  for (let i = meta + 1; i < lines.length && isChild(lines[i]); i += 1) {
+    if (lines[i].trim() === 'internal: true') return i;
+  }
+  return -1;
+}
+
 export function setInternal(content, on) {
   const fm = splitFrontmatter(content);
   if (!fm) throw new Error('cannot set internal flag: file has no frontmatter');
@@ -59,19 +67,21 @@ export function setInternal(content, on) {
   if (on) {
     if (meta === -1) {
       lines.push('metadata:', INTERNAL_LINE);
-    } else if (!lines.slice(meta + 1).some((l) => l.trim() === 'internal: true' && isChild(l))) {
+    } else if (internalIndex(lines, meta) === -1) {
       lines.splice(meta + 1, 0, INTERNAL_LINE);
     }
     return join(fm);
   }
 
-  const flag = lines.findIndex((l) => isChild(l) && l.trim() === 'internal: true');
+  // Only the flag inside our own `metadata:` block, so an `internal: true`
+  // under some other key is left alone. `isInternal` reads the same one.
+  if (meta === -1) return join(fm);
+  const flag = internalIndex(lines, meta);
   if (flag === -1) return join(fm);
   lines.splice(flag, 1);
 
   // Drop a metadata block that the flag left empty.
-  const after = metadataIndex(lines);
-  if (after !== -1 && !isChild(lines[after + 1] ?? '')) lines.splice(after, 1);
+  if (!isChild(lines[meta + 1] ?? '')) lines.splice(meta, 1);
   return join(fm);
 }
 
@@ -91,9 +101,5 @@ export function isInternal(content) {
   const fm = splitFrontmatter(content);
   if (!fm) return false;
   const meta = metadataIndex(fm.lines);
-  if (meta === -1) return false;
-  return fm.lines
-    .slice(meta + 1)
-    .filter(isChild)
-    .some((l) => l.trim() === 'internal: true');
+  return meta !== -1 && internalIndex(fm.lines, meta) !== -1;
 }

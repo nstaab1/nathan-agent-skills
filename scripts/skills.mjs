@@ -11,21 +11,21 @@
  * The vendor mirror lives on a separate orphan branch and is gitignored on main,
  * so the `skills` CLI, which downloads a tarball of one ref, can never see it.
  */
-import { execSync } from 'node:child_process';
 import {
   readFileSync,
   writeFileSync,
   readdirSync,
   existsSync,
   mkdirSync,
+  renameSync,
   rmSync,
-  statSync,
 } from 'node:fs';
 import { join, dirname, relative } from 'node:path';
 
 import { git, gitQuiet, repoRoot, objectExists, branchExists, revParse, readTree } from './lib/git.mjs';
 import { setName, setInternal, isInternal, getField } from './lib/frontmatter.mjs';
-import { mergeText, mergeSkillMd } from './lib/merge.mjs';
+import { reconcileTree } from './lib/reconcile.mjs';
+import { extractSubtree } from './lib/vendor.mjs';
 import { diffSkill, replaceRegion, renderSkillTable, renderNotices } from './lib/provenance.mjs';
 
 const ROOT = repoRoot();
@@ -35,6 +35,7 @@ const PROV_PATH = join(ROOT, 'provenance.json');
 const SKILLS_DIR = join(ROOT, 'skills');
 
 const log = (...a) => console.log(...a);
+const plural = (n, word) => `(${n} ${word}${n === 1 ? '' : 's'})`;
 const die = (msg) => {
   console.error(`error: ${msg}`);
   process.exit(1);
@@ -99,6 +100,8 @@ function ensureWorktree() {
   log(`vendor mirror checked out at ${relative(ROOT, VENDOR_DIR)}/`);
 }
 
+const vendorHead = () => git(['-C', VENDOR_DIR, 'rev-parse', 'HEAD']);
+
 function requireWorktree() {
   if (!existsSync(join(VENDOR_DIR, '.git'))) {
     die('vendor worktree is missing. Run: node scripts/skills.mjs init');
@@ -125,11 +128,7 @@ function syncUpstream(prov, name, { advance = false } = {}) {
 
   rmSync(dest, { recursive: true, force: true });
   mkdirSync(dest, { recursive: true });
-  const strip = u.strip ? `--strip-components=${u.strip}` : '';
-  execSync(`git archive ${sha} ${u.paths.join(' ')} | tar -x ${strip} -C ${JSON.stringify(dest)}`, {
-    cwd: ROOT,
-    stdio: ['ignore', 'ignore', 'inherit'],
-  });
+  extractSubtree({ sha, paths: u.paths, strip: u.strip ?? 0, dest, cwd: ROOT });
 
   writeFileSync(
     join(dest, '.vendor.json'),
@@ -141,7 +140,7 @@ function syncUpstream(prov, name, { advance = false } = {}) {
   if (!committed.ok && !committed.out.includes('nothing to commit')) die(committed.out);
 
   u.sha = sha;
-  const vendorCommit = git(['-C', VENDOR_DIR, 'rev-parse', 'HEAD']);
+  const vendorCommit = vendorHead();
   log(`${name}: mirrored ${u.repo} at ${sha.slice(0, 7)} (vendor ${vendorCommit.slice(0, 7)})`);
   return { sha, vendorCommit };
 }
@@ -173,7 +172,11 @@ function cmdAdopt(argv) {
   const spec = argv._[0] ?? die('usage: adopt <upstream>/<skill> --to <folder> [--as <name>] [--unlink]');
   const [upstream, ...rest] = spec.split('/');
   const skillName = rest.at(-1) ?? die('expected <upstream>/<skill>');
-  const folder = argv.to ?? die('--to <folder> is required (engineering, productivity, agentic)');
+  const folders = readdirSync(SKILLS_DIR, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+  const folder = argv.to ?? die(`--to <folder> is required; one of: ${folders.join(', ')}`);
+  if (!folders.includes(folder)) die(`unknown folder "${folder}"; one of: ${folders.join(', ')}`);
 
   const u = upstreamOf(prov, upstream);
   const srcAbs = locateVendoredSkill(upstream, skillName);
@@ -193,7 +196,7 @@ function cmdAdopt(argv) {
     source: upstream,
     sourcePath,
     upstreamSha: u.sha,
-    vendorCommit: git(['-C', VENDOR_DIR, 'rev-parse', 'HEAD']),
+    vendorCommit: vendorHead(),
     linked: argv.unlink !== true,
   };
   saveProvenance(prov);
@@ -259,19 +262,22 @@ function cmdCheck() {
 
   const width = Math.max(...rows.map((r) => r.key.length));
   for (const r of rows) {
-    const detail = r.changed?.length ? `  (${r.changed.length} file${r.changed.length > 1 ? 's' : ''})` : '';
+    const detail = r.changed?.length ? `  ${plural(r.changed.length, 'file')}` : '';
     const src = r.source ? `  <- ${r.source}` : '';
     log(`${r.key.padEnd(width)}  ${r.status}${detail}${src}${r.internal ? '  [internal]' : ''}`);
   }
 
   if (haveWorktree) {
-    for (const [name] of Object.entries(prov.upstreams)) {
-      const mirrored = readTree(`${VENDOR_BRANCH}`, name);
+    for (const [name, u] of Object.entries(prov.upstreams)) {
+      const root = u.skillsRoot ?? 'skills';
+      const mirrored = readTree(VENDOR_BRANCH, `${name}/${root}`);
       const adopted = new Set(
         Object.values(prov.skills).filter((e) => e.source === name).map((e) => e.sourcePath)
       );
       const available = new Set(
-        [...mirrored.keys()].filter((p) => p.endsWith('/SKILL.md')).map((p) => dirname(p))
+        [...mirrored.keys()]
+          .filter((p) => p.endsWith('/SKILL.md'))
+          .map((p) => `${root}/${dirname(p)}`)
       );
       const spare = [...available].filter((p) => !adopted.has(p)).length;
       if (spare > 0) log(`\n${name}: ${spare} skills available upstream, not adopted`);
@@ -313,55 +319,33 @@ function cmdUpdate(argv) {
     const path = `${name}/${entry.sourcePath}`;
     const base = readTree(oldCommit, path);
     const next = readTree(vendorCommit, path);
-    const mine = readDirTree(abs);
-
     if (next.size === 0) {
       log(`${key}: upstream removed this skill; left untouched`);
       continue;
     }
 
-    const paths = new Set([...base.keys(), ...next.keys(), ...mine.keys()]);
-    const result = new Map();
-    let skillConflicts = 0;
-    let skillChanges = 0;
+    const { result, changes, conflicts: skillConflicts } = reconcileTree({
+      base,
+      next,
+      mine: readDirTree(abs),
+      labels: { upstream: name },
+    });
 
-    for (const rel of paths) {
-      const b = base.get(rel);
-      const n = next.get(rel);
-      const m = mine.get(rel);
-
-      if (b === undefined && n !== undefined && m === undefined) {
-        result.set(rel, n);
-        skillChanges += 1;
-        continue;
-      }
-      if (n === undefined && m !== undefined) {
-        if (b !== undefined && b === m) {
-          skillChanges += 1;
-          continue; // upstream deleted it and you never touched it
-        }
-        result.set(rel, m);
-        continue;
-      }
-      if (m === undefined) continue;
-
-      const merge = rel.endsWith('SKILL.md') ? mergeSkillMd : mergeText;
-      const r = merge({ base: b ?? '', mine: m, upstream: n ?? '', labels: { upstream: name } });
-      if (r.text !== m) skillChanges += 1;
-      if (r.conflicted) skillConflicts += 1;
-      result.set(rel, r.text);
-    }
-
+    // Write beside the skill and swap, so a throw mid-write cannot leave the
+    // directory deleted.
+    const staging = `${abs}.merging`;
+    rmSync(staging, { recursive: true, force: true });
+    writeDirTree(staging, result);
     rmSync(abs, { recursive: true, force: true });
-    writeDirTree(abs, result);
+    renameSync(staging, abs);
 
     entry.vendorCommit = vendorCommit;
     entry.upstreamSha = sha;
-    if (skillChanges) touched += 1;
+    if (changes) touched += 1;
     if (skillConflicts) {
       conflicts += skillConflicts;
-      log(`CONFLICT  ${key}  (${skillConflicts} file${skillConflicts > 1 ? 's' : ''})`);
-    } else if (skillChanges) {
+      log(`CONFLICT  ${key}  ${plural(skillConflicts, 'file')}`);
+    } else if (changes) {
       log(`merged    ${key}`);
     }
   }
@@ -411,7 +395,7 @@ switch (command) {
     break;
   case 'sync': {
     const prov = loadProvenance();
-    syncUpstream(prov, argv._[0] ?? die('usage: sync <upstream>'), { advance: argv.advance === true });
+    syncUpstream(prov, argv._[0] ?? die('usage: sync <upstream>'));
     saveProvenance(prov);
     break;
   }
