@@ -1,27 +1,63 @@
-import { test } from 'node:test';
+import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { showFile, readTree, lsTree } from './git.mjs';
 
 // Reading a blob out of a git tree must be byte-exact. Trailing newlines are
-// the whole ballgame: strip them and every file looks locally modified.
-const SAMPLE = 'scripts/lib/git.mjs';
+// the whole ballgame: strip them and every adopted file reads as modified.
+// Built as a throwaway repo so the assertions never depend on this repo's
+// working tree matching HEAD.
+let dir;
+const NEWLINE = 'ends with a newline\n';
+const NO_NEWLINE = 'no trailing newline';
 
-test('showFile round-trips a committed file byte for byte', () => {
-  const fromGit = showFile('HEAD', 'README.md');
-  const fromDisk = readFileSync('README.md', 'utf8');
-  assert.equal(fromGit.endsWith('\n'), fromDisk.endsWith('\n'));
+before(() => {
+  dir = mkdtempSync(join(tmpdir(), 'skills-git-'));
+  const run = (...args) => execFileSync('git', args, { cwd: dir, stdio: 'ignore' });
+  run('init', '-q');
+  run('config', 'user.email', 'test@example.com');
+  run('config', 'user.name', 'Test');
+  mkdirSync(join(dir, 'pack/skill/nested'), { recursive: true });
+  writeFileSync(join(dir, 'pack/skill/SKILL.md'), NEWLINE);
+  writeFileSync(join(dir, 'pack/skill/nested/ref.md'), NO_NEWLINE);
+  run('add', '-A');
+  run('commit', '-qm', 'seed');
 });
 
-test('readTree preserves trailing newlines', () => {
-  const tree = readTree('HEAD', 'skills/engineering/code-review');
-  const skill = tree.get('SKILL.md');
-  assert.equal(typeof skill, 'string');
-  assert.equal(skill, readFileSync('skills/engineering/code-review/SKILL.md', 'utf8'));
+after(() => rmSync(dir, { recursive: true, force: true }));
+
+const at = (fn) => {
+  const cwd = process.cwd();
+  process.chdir(dir);
+  try {
+    return fn();
+  } finally {
+    process.chdir(cwd);
+  }
+};
+
+test('showFile keeps a trailing newline', () => {
+  assert.equal(at(() => showFile('HEAD', 'pack/skill/SKILL.md')), NEWLINE);
+});
+
+test('showFile does not invent a trailing newline', () => {
+  assert.equal(at(() => showFile('HEAD', 'pack/skill/nested/ref.md')), NO_NEWLINE);
+});
+
+test('readTree returns every file under the prefix, byte for byte', () => {
+  const tree = at(() => readTree('HEAD', 'pack/skill'));
+  assert.deepEqual([...tree.keys()].sort(), ['SKILL.md', 'nested/ref.md']);
+  assert.equal(tree.get('SKILL.md'), NEWLINE);
+  assert.equal(tree.get('nested/ref.md'), NO_NEWLINE);
+});
+
+test('readTree is empty for a path that does not exist at that ref', () => {
+  assert.equal(at(() => readTree('HEAD', 'pack/absent')).size, 0);
 });
 
 test('lsTree lists paths relative to the prefix', () => {
-  const files = lsTree('HEAD', 'skills/engineering/code-review');
-  assert.ok(files.includes('SKILL.md'), files.join(','));
-  assert.ok(!files.some((f) => f.startsWith('skills/')));
+  assert.deepEqual(at(() => lsTree('HEAD', 'pack/skill')).sort(), ['SKILL.md', 'nested/ref.md']);
 });
