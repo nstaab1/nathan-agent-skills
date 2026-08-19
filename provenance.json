@@ -224,6 +224,14 @@
       "linked": true,
       "status": "verbatim"
     },
+    "productivity/unslop-copy": {
+      "source": "pstack",
+      "sourcePath": "skills/unslop",
+      "upstreamSha": "60c641e4fad674784b30abcf9f8915dea39df38d",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "verbatim"
+    },
     "productivity/wait-what": {
       "source": "mattpocock",
       "sourcePath": "skills/productivity/wait-what",
