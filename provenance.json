@@ -226,7 +226,7 @@
       "linked": true,
       "status": "verbatim"
     },
-    "productivity/unslop-copy": {
+    "productivity/unslop": {
       "source": "pstack",
       "sourcePath": "skills/unslop",
       "upstreamSha": "60c641e4fad674784b30abcf9f8915dea39df38d",

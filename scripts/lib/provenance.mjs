@@ -87,3 +87,8 @@ export function renderNotices(provenance) {
   out.push('', 'Full licence text for each upstream is at `vendor/<upstream>/LICENSE` on the `vendor` branch.', '');
   return out.join('\n');
 }
+
+/** The shipping name for an adopted copy: `unslop-copy` becomes `unslop`. */
+export function graduatedName(name) {
+  return name.endsWith('-copy') ? name.slice(0, -'-copy'.length) : name;
+}

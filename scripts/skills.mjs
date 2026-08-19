@@ -36,7 +36,13 @@ import { setName, setInternal, isInternal, getField } from './lib/frontmatter.mj
 import { reconcileTree } from './lib/reconcile.mjs';
 import { mergeText } from './lib/merge.mjs';
 import { extractSubtree } from './lib/vendor.mjs';
-import { diffSkill, replaceRegion, renderSkillTable, renderNotices } from './lib/provenance.mjs';
+import {
+  diffSkill,
+  replaceRegion,
+  renderSkillTable,
+  renderNotices,
+  graduatedName,
+} from './lib/provenance.mjs';
 
 const ROOT = repoRoot();
 const VENDOR_BRANCH = 'vendor';
@@ -215,6 +221,39 @@ function cmdAdopt(argv) {
 
   log(`adopted ${upstream}/${sourcePath} -> skills/${key}`);
   log(`  name: ${target}   internal: true   linked: ${prov.skills[key].linked}`);
+  log('Run `node scripts/skills.mjs check` to refresh the generated files.');
+}
+
+/**
+ * Ship an adopted copy: drop the internal flag and the `-copy` suffix.
+ *
+ * The suffix lives in three places at once (directory, frontmatter `name`, and
+ * the provenance key), so this is a command rather than a hand edit. The link
+ * to the vendored baseline is kept, so upstream changes still merge in.
+ */
+function cmdGraduate(argv) {
+  const prov = loadProvenance();
+  const key = argv._[0] ?? die('usage: graduate <folder>/<skill> [--as <name>]');
+  const entry = prov.skills[key] ?? die(`${key} is not in provenance.json`);
+  const [folder, current] = key.split('/');
+  const target = argv.as ?? graduatedName(current);
+
+  const from = join(SKILLS_DIR, key);
+  const to = join(SKILLS_DIR, folder, target);
+  if (!existsSync(from)) die(`${relative(ROOT, from)} does not exist`);
+  if (to !== from && existsSync(to)) die(`${relative(ROOT, to)} already exists`);
+
+  const skillPath = join(from, 'SKILL.md');
+  writeFileSync(skillPath, setInternal(setName(readFileSync(skillPath, 'utf8'), target), false));
+  if (to !== from) {
+    renameSync(from, to);
+    prov.skills[`${folder}/${target}`] = entry;
+    delete prov.skills[key];
+  }
+  saveProvenance(prov);
+
+  log(`graduated ${key} -> ${folder}/${target}`);
+  log(`  name: ${target}   internal: false   still linked to ${entry.source ?? 'nothing'}`);
   log('Run `node scripts/skills.mjs check` to refresh the generated files.');
 }
 
@@ -428,6 +467,7 @@ const USAGE = `usage: node scripts/skills.mjs <command>
   init                              create the vendor worktree
   sync <upstream>                   mirror an upstream onto the vendor branch
   adopt <upstream>/<skill> --to <folder> [--as <name>] [--unlink]
+  graduate <folder>/<skill> [--as <name>]   ship an adopted copy
   check                             report drift, regenerate generated files
   update <upstream>                 re-sync then merge upstream changes
 `;
@@ -447,6 +487,9 @@ switch (command) {
   }
   case 'adopt':
     cmdAdopt(argv);
+    break;
+  case 'graduate':
+    cmdGraduate(argv);
     break;
   case 'check':
     cmdCheck();

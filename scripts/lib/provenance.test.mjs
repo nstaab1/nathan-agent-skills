@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { diffSkill, replaceRegion, renderSkillTable, renderNotices } from './provenance.mjs';
+import { diffSkill, replaceRegion, renderSkillTable, renderNotices, graduatedName } from './provenance.mjs';
 
 const SKILL = `---
 name: unslop
@@ -102,4 +102,17 @@ test('renderNotices lists every upstream with its licence holder and pinned sha'
   assert.match(md, /8b78b53/);
   assert.match(md, /abc1234/);
   assert.match(md, /cursor\/plugins/);
+});
+
+test('graduatedName drops the copy suffix', () => {
+  assert.equal(graduatedName('unslop-copy'), 'unslop');
+});
+
+test('graduatedName leaves a name without the suffix alone', () => {
+  assert.equal(graduatedName('unslop'), 'unslop');
+});
+
+test('graduatedName only strips a trailing suffix', () => {
+  assert.equal(graduatedName('copy-cat'), 'copy-cat');
+  assert.equal(graduatedName('my-copy-skill'), 'my-copy-skill');
 });
