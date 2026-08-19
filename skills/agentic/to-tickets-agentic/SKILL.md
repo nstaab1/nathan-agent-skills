@@ -41,8 +41,8 @@ Present a numbered draft. For each ticket show its title, blockers, delivered be
 
 The lane test is the seam:
 
-- **AFK** — the public seams already exist or are settled now, so they can be named in the ticket.
-- **Attended** — the seam or interface design remains a question requiring human judgment.
+- **AFK.** The public seams already exist or are settled now, so they can be named in the ticket.
+- **Attended.** The seam or interface design remains a question requiring human judgment.
 
 Tickets on the same frontier must touch disjoint areas. Add a blocking edge between overlapping tickets even when neither logically gates the other; parallel autonomous runs on shared files create avoidable merge conflicts.
 
@@ -52,8 +52,8 @@ Iterate until the user approves every ticket and lane.
 
 Prefix every title with `[Ticket]` exactly once.
 
-- **Local tracker** — write one file per ticket under `.scratch/<feature>/issues/<NN>-<slug>.md` in dependency order.
-- **Real tracker** — create tickets in dependency order, attach them as native children of the parent when available, then wire native blocking edges in a second pass. Confirm the parent lists every child.
+- **Local tracker.** Write one file per ticket under `.scratch/<feature>/issues/<NN>-<slug>.md` in dependency order.
+- **Real tracker.** Create tickets in dependency order, attach them as native children of the parent when available, then wire native blocking edges in a second pass. Confirm the parent lists every child.
 
 Apply the configured `ready-for-agent` label to AFK tickets and `ready-for-human` to attended tickets. Leave the parent spec unchanged and open.
 
@@ -78,11 +78,11 @@ Sub-issue and blocked-by relationships are distinct: the first groups work under
 
 ## Seams under test
 
-- <public interface and behavior, or "Attended — seams to be agreed at the keyboard">
+- <public interface and behavior, or "Attended. Seams to be agreed at the keyboard">
 
 ## Blocked by
 
-- <blocking ticket, or "None — can start immediately">
+- <blocking ticket, or "None. Can start immediately">
 ```
 
 Name interfaces and behaviors, not file paths. A prototype snippet may be included only when it records a settled decision more precisely than prose.

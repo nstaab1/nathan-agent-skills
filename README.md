@@ -191,7 +191,7 @@ To see what else is on offer, `check` prints how many skills each upstream has t
 
 ### Files that are not skills
 
-`provenance.json` also tracks individual files under `files:` — the catalogue READMEs, for instance — so upstream edits to them merge the same way instead of drifting silently.
+`provenance.json` also tracks individual files under `files:`, such as the catalogue READMEs, so upstream edits to them merge the same way instead of drifting silently.
 
 ### Generated, do not hand-edit
 

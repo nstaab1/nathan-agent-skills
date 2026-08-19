@@ -1,8 +1,8 @@
 /**
  * Minimal, line-oriented YAML frontmatter handling.
  *
- * Deliberately not a YAML parser. The script owns exactly two fields — `name`
- * and `metadata.internal` — and every other line must survive byte-identical so
+ * Deliberately not a YAML parser. The script owns exactly two fields, `name`
+ * and `metadata.internal`. Every other line must survive byte-identical so
  * that three-way merges against a vendored baseline stay clean.
  */
 
