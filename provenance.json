@@ -104,7 +104,7 @@
       "upstreamSha": "885e2ca4d842d139e9aef4e48d366c63cb1b8013",
       "vendorCommit": "84d96ac507e427c1265819e7ee742b90ecc6a215",
       "linked": true,
-      "status": "verbatim"
+      "status": "modified"
     },
     "engineering/improve-codebase-architecture": {
       "source": "mattpocock",
