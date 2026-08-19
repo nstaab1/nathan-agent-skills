@@ -22,9 +22,19 @@ import {
 } from 'node:fs';
 import { join, dirname, relative } from 'node:path';
 
-import { git, gitQuiet, repoRoot, objectExists, branchExists, revParse, readTree } from './lib/git.mjs';
+import {
+  git,
+  gitQuiet,
+  repoRoot,
+  objectExists,
+  branchExists,
+  revParse,
+  readTree,
+  tryShowFile,
+} from './lib/git.mjs';
 import { setName, setInternal, isInternal, getField } from './lib/frontmatter.mjs';
 import { reconcileTree } from './lib/reconcile.mjs';
+import { mergeText } from './lib/merge.mjs';
 import { extractSubtree } from './lib/vendor.mjs';
 import { diffSkill, replaceRegion, renderSkillTable, renderNotices } from './lib/provenance.mjs';
 
@@ -46,9 +56,11 @@ const die = (msg) => {
 const loadProvenance = () => JSON.parse(readFileSync(PROV_PATH, 'utf8'));
 
 function saveProvenance(prov) {
+  const sorted = (o) => Object.fromEntries(Object.entries(o ?? {}).sort(([a], [b]) => a.localeCompare(b)));
   const ordered = {
     upstreams: prov.upstreams,
-    skills: Object.fromEntries(Object.entries(prov.skills).sort(([a], [b]) => a.localeCompare(b))),
+    skills: sorted(prov.skills),
+    files: sorted(prov.files),
   };
   writeFileSync(PROV_PATH, `${JSON.stringify(ordered, null, 2)}\n`);
 }
@@ -267,6 +279,15 @@ function cmdCheck() {
     log(`${r.key.padEnd(width)}  ${r.status}${detail}${src}${r.internal ? '  [internal]' : ''}`);
   }
 
+  for (const [path, entry] of Object.entries(prov.files ?? {})) {
+    const base = tryShowFile(entry.vendorCommit, `${entry.source}/${entry.sourcePath}`);
+    const mine = existsSync(join(ROOT, path)) ? readFileSync(join(ROOT, path), 'utf8') : undefined;
+    if (mine === undefined) entry.status = 'missing';
+    else if (base === undefined) entry.status = 'baseline-missing';
+    else entry.status = base === mine ? 'verbatim' : 'modified';
+    log(`${path.padEnd(width)}  ${entry.status}  <- ${entry.source}  [file]`);
+  }
+
   if (haveWorktree) {
     for (const [name, u] of Object.entries(prov.upstreams)) {
       const root = u.skillsRoot ?? 'skills';
@@ -308,6 +329,9 @@ function cmdUpdate(argv) {
     ([, e]) => e.source === name && e.linked !== false
   );
   const before = new Map(linked.map(([key, e]) => [key, e.vendorCommit]));
+  for (const [path, e] of Object.entries(prov.files ?? {})) {
+    if (e.source === name) before.set(`file:${path}`, e.vendorCommit);
+  }
 
   const { sha, vendorCommit } = syncUpstream(prov, name, { advance: true });
 
@@ -350,8 +374,30 @@ function cmdUpdate(argv) {
     }
   }
 
+  for (const [path, entry] of Object.entries(prov.files ?? {})) {
+    if (entry.source !== name || entry.linked === false) continue;
+    const rel = `${name}/${entry.sourcePath}`;
+    const base = tryShowFile(before.get(`file:${path}`) ?? entry.vendorCommit, rel);
+    const next = tryShowFile(vendorCommit, rel);
+    const abs = join(ROOT, path);
+    if (base === undefined || next === undefined || !existsSync(abs)) {
+      log(`${path}: no baseline upstream; left untouched`);
+      continue;
+    }
+    const mine = readFileSync(abs, 'utf8');
+    const merged = mergeText({ base, mine, upstream: next, labels: { upstream: name } });
+    if (merged.text !== mine) {
+      writeFileSync(abs, merged.text);
+      touched += 1;
+      log(merged.conflicted ? `CONFLICT  ${path}` : `merged    ${path}`);
+    }
+    if (merged.conflicted) conflicts += 1;
+    entry.vendorCommit = vendorCommit;
+    entry.upstreamSha = sha;
+  }
+
   saveProvenance(prov);
-  log(`\n${touched} skill(s) changed, ${conflicts} conflicted file(s).`);
+  log(`\n${touched} item(s) changed, ${conflicts} conflicted file(s).`);
   if (conflicts) log('Resolve the conflict markers, then run: node scripts/skills.mjs check');
   else log('Run: node scripts/skills.mjs check');
 }

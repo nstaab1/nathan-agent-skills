@@ -116,17 +116,75 @@ Edit skills here, commit and push them, then run the consuming project's install
 
 ## Vendored upstreams
 
-Some skills here were copied from other people's repositories. Each upstream is mirrored verbatim on an orphan `vendor` branch, pinned at the commit the copies were taken from. That baseline is what makes "have I changed this, or did they?" answerable, and it is what upstream changes are merged against.
+Some skills here started as copies of other people's work: [mattpocock/skills](https://github.com/mattpocock/skills) and the [pstack plugin](https://github.com/cursor/plugins/tree/main/pstack) by Lauren Tan.
+
+Each upstream is mirrored **verbatim** on an orphan `vendor` branch, pinned at the commit the copies were taken from. That pinned mirror is the baseline. It is the only thing that makes two questions answerable: *what have I changed?* and *what did they change?*
 
 The mirror is gitignored on `main` and lives on its own branch, so the `skills` CLI, which downloads a tarball of a single ref, never sees it. Nothing under `vendor/` is installable.
 
+### First time in a fresh clone
+
 ```bash
-node scripts/skills.mjs init            # check out the vendor mirror (once per clone)
-node scripts/skills.mjs check           # what have I changed? regenerate generated files
-node scripts/skills.mjs update mattpocock   # pull upstream changes in as a three-way merge
+node scripts/skills.mjs init
+```
+
+Checks out the `vendor` branch as a worktree at `vendor/`. Do this once per clone. Every other command needs it.
+
+### What have I changed?
+
+```bash
+node scripts/skills.mjs check
+```
+
+Prints one line per skill and regenerates `provenance.json`, `THIRD_PARTY_NOTICES.md`, and the table above.
+
+| State | Meaning |
+| --- | --- |
+| `verbatim` | Identical to the upstream baseline. An upstream change will merge silently. |
+| `modified` | You have edited it. An upstream change to the same lines will conflict. |
+| `owned` | Yours. No upstream, never merged. |
+| `[internal]` | `metadata: internal: true`. Hidden from the picker; installs only by explicit name. |
+
+Safe to run any time. It changes nothing but the generated files.
+
+### Pulling upstream changes
+
+```bash
+node scripts/skills.mjs update mattpocock
+```
+
+1. Re-fetches the upstream and moves the mirror forward to the head of its tracked branch.
+2. For every linked skill, three-way merges *(baseline → upstream)* into your copy.
+3. Skills you never touched take the new version silently. Skills you edited in different places merge cleanly. Only genuine collisions stop you.
+
+Conflicts land as ordinary markers **in your files**:
+
+```
+<<<<<<< yours
+...your line
+=======
+...their line
+>>>>>>> mattpocock
+```
+
+Resolve them by hand (`/resolving-merge-conflicts` helps), then run `check` and commit. Skills absent from `provenance.json` are never written to, so passing on an upstream skill keeps it gone.
+
+### Taking a new skill from an upstream
+
+```bash
 node scripts/skills.mjs adopt pstack/unslop --to productivity
 ```
 
-`adopt` copies a vendored skill into `skills/`, suffixes its name with `-copy`, and marks it `metadata: internal: true` so it stays out of the picker until you decide to ship it. Those two fields are owned by the script and are held constant through every merge, so an upstream edit to the frontmatter never conflicts with the rename.
+Copies the vendored skill into `skills/productivity/`, appends `-copy` to its name, and sets `metadata: internal: true` so it stays out of the picker while you try it. `--to` must name a folder that already exists. `--as <name>` overrides the name; `--unlink` makes it a hard fork that future updates ignore.
 
-`provenance.json` and `THIRD_PARTY_NOTICES.md` are generated. Do not edit them by hand.
+To ship one, delete the `internal: true` line. To see what else is on offer, `check` prints how many skills each upstream has that you have not adopted, and you can browse them under `vendor/`.
+
+`name` and `metadata.internal` are owned by the script and held constant through every merge, so an upstream edit to the frontmatter never fights your rename.
+
+### Files that are not skills
+
+`provenance.json` also tracks individual files under `files:` — the catalogue READMEs, for instance — so upstream edits to them merge the same way instead of drifting silently.
+
+### Generated, do not hand-edit
+
+`provenance.json`, `THIRD_PARTY_NOTICES.md`, and the skill table near the top of this file. All three are rewritten by `check`.

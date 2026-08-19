@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { showFile, readTree, lsTree } from './git.mjs';
+import { showFile, readTree, lsTree, tryShowFile } from './git.mjs';
 
 // Reading a blob out of a git tree must be byte-exact. Trailing newlines are
 // the whole ballgame: strip them and every adopted file reads as modified.
@@ -60,4 +60,12 @@ test('readTree is empty for a path that does not exist at that ref', () => {
 
 test('lsTree lists paths relative to the prefix', () => {
   assert.deepEqual(at(() => lsTree('HEAD', 'pack/skill')).sort(), ['SKILL.md', 'nested/ref.md']);
+});
+
+test('tryShowFile returns undefined for a path absent at that ref', () => {
+  assert.equal(at(() => tryShowFile('HEAD', 'pack/skill/absent.md')), undefined);
+});
+
+test('tryShowFile returns content byte-exactly when present', () => {
+  assert.equal(at(() => tryShowFile('HEAD', 'pack/skill/SKILL.md')), NEWLINE);
 });

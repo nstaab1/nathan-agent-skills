@@ -46,6 +46,12 @@ export function lsTree(ref, prefix) {
 
 export const showFile = (ref, path) => gitRaw(['show', `${ref}:${path}`]);
 
+/** Byte-exact file read, or undefined when the path is absent at that ref. */
+export function tryShowFile(ref, path) {
+  const res = gitQuiet(['show', `${ref}:${path}`]);
+  return res.ok ? gitRaw(['show', `${ref}:${path}`]) : undefined;
+}
+
 /** Read a whole subtree at `ref` into a Map of relative path to content. */
 export function readTree(ref, prefix) {
   const files = lsTree(ref, prefix);
