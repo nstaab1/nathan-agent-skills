@@ -7,7 +7,7 @@ the `vendor` branch, alongside its own licence, at the commit recorded here.
 
 | Upstream | Repository | Pinned commit | Licence | Copyright | Skills adopted |
 | --- | --- | --- | --- | --- | --- |
-| `mattpocock` | [mattpocock/skills](https://github.com/mattpocock/skills) | `885e2ca4d842d139e9aef4e48d366c63cb1b8013` | MIT | Matt Pocock | 25 |
+| `mattpocock` | [mattpocock/skills](https://github.com/mattpocock/skills) | `885e2ca4d842d139e9aef4e48d366c63cb1b8013` | MIT | Matt Pocock | 26 |
 | `pstack` | [cursor/plugins (`pstack/`)](https://github.com/cursor/plugins) | `60c641e4fad674784b30abcf9f8915dea39df38d` | MIT | Lauren Tan | 1 |
 
 Full licence text for each upstream is at `vendor/<upstream>/LICENSE` on the `vendor` branch.
