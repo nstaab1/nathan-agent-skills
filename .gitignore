@@ -1,2 +1,7 @@
 .DS_Store
 node_modules/
+
+# Vendor mirrors live on the orphan `vendor` branch, checked out here by
+# `node scripts/skills.mjs init`. Never committed on main, so the skills CLI
+# (which downloads a tarball of one ref) cannot discover them.
+vendor/
