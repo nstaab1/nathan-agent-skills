@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { showFile, readTree, lsTree, tryShowFile } from './git.mjs';
+import { showFile, readTree, lsTree, tryShowFile, branchExists, remoteBranchExists } from './git.mjs';
 
 // Reading a blob out of a git tree must be byte-exact. Trailing newlines are
 // the whole ballgame: strip them and every adopted file reads as modified.
@@ -68,4 +68,39 @@ test('tryShowFile returns undefined for a path absent at that ref', () => {
 
 test('tryShowFile returns content byte-exactly when present', () => {
   assert.equal(at(() => tryShowFile('HEAD', 'pack/skill/SKILL.md')), NEWLINE);
+});
+
+test('remoteBranchExists sees a branch that exists only on the remote', () => {
+  const bare = mkdtempSync(join(tmpdir(), 'skills-bare-'));
+  const clone = mkdtempSync(join(tmpdir(), 'skills-clone-'));
+  const run = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: 'ignore' });
+  try {
+    run(bare, 'init', '-q', '--bare', '--initial-branch=main');
+    // Publish a `vendor` branch, then clone: locally only origin/vendor exists.
+    const seed = mkdtempSync(join(tmpdir(), 'skills-seed-'));
+    run(seed, 'init', '-q', '--initial-branch=main');
+    run(seed, 'config', 'user.email', 'test@example.com');
+    run(seed, 'config', 'user.name', 'Test');
+    writeFileSync(join(seed, 'f.txt'), 'x\n');
+    run(seed, 'add', '-A');
+    run(seed, 'commit', '-qm', 'seed');
+    run(seed, 'branch', 'vendor');
+    run(seed, 'remote', 'add', 'origin', bare);
+    run(seed, 'push', '-q', 'origin', 'main', 'vendor');
+    execFileSync('git', ['clone', '-q', bare, clone], { stdio: 'ignore' });
+
+    const cwd = process.cwd();
+    process.chdir(clone);
+    try {
+      assert.equal(branchExists('vendor'), false, 'local branch must not exist yet');
+      assert.equal(remoteBranchExists('origin', 'vendor'), true);
+      assert.equal(remoteBranchExists('origin', 'nosuchbranch'), false);
+    } finally {
+      process.chdir(cwd);
+    }
+    rmSync(seed, { recursive: true, force: true });
+  } finally {
+    rmSync(bare, { recursive: true, force: true });
+    rmSync(clone, { recursive: true, force: true });
+  }
 });

@@ -28,6 +28,7 @@ import {
   repoRoot,
   objectExists,
   branchExists,
+  remoteBranchExists,
   revParse,
   readTree,
   tryShowFile,
@@ -108,10 +109,22 @@ function ensureWorktree() {
     die(`${VENDOR_DIR} exists but is not a worktree; move it aside and re-run init`);
   }
   if (!branchExists(VENDOR_BRANCH)) {
-    const empty = git(['hash-object', '-t', 'tree', '/dev/null']);
-    const commit = git(['commit-tree', empty, '-m', 'Initialise the vendor mirror branch']);
-    git(['branch', VENDOR_BRANCH, commit]);
-    log(`created orphan branch ${VENDOR_BRANCH}`);
+    if (remoteBranchExists('origin', VENDOR_BRANCH)) {
+      // Fresh clone: the mirror is published, adopt it rather than starting an
+      // empty orphan that would discard it.
+      git(['branch', VENDOR_BRANCH, `origin/${VENDOR_BRANCH}`]);
+      log(`tracking the published mirror origin/${VENDOR_BRANCH}`);
+    } else {
+      const empty = git(['hash-object', '-t', 'tree', '/dev/null']);
+      const commit = git(['commit-tree', empty, '-m', 'Initialise the vendor mirror branch']);
+      git(['branch', VENDOR_BRANCH, commit]);
+      log(`created orphan branch ${VENDOR_BRANCH}`);
+    }
+  } else if (
+    remoteBranchExists('origin', VENDOR_BRANCH) &&
+    revParse(VENDOR_BRANCH) !== revParse(`origin/${VENDOR_BRANCH}`)
+  ) {
+    log(`warning: local ${VENDOR_BRANCH} differs from origin/${VENDOR_BRANCH}; reconcile them before syncing`);
   }
   rmSync(VENDOR_DIR, { recursive: true, force: true });
   git(['worktree', 'add', VENDOR_DIR, VENDOR_BRANCH], { stdio: 'inherit' });

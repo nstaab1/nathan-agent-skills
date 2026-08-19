@@ -34,6 +34,14 @@ export const objectExists = (sha) => gitQuiet(['cat-file', '-e', `${sha}^{commit
 export const branchExists = (name) =>
   gitQuiet(['show-ref', '--verify', '--quiet', `refs/heads/${name}`]).ok;
 
+/**
+ * A branch that exists only on the remote. After a fresh clone the mirror is
+ * `origin/vendor` with no local `vendor`, and treating that as "no mirror"
+ * would replace the published one with an empty orphan.
+ */
+export const remoteBranchExists = (remote, name) =>
+  gitQuiet(['show-ref', '--verify', '--quiet', `refs/remotes/${remote}/${name}`]).ok;
+
 export const revParse = (ref) => git(['rev-parse', ref]);
 
 /** File paths under `prefix` at `ref`, relative to `prefix`. */
