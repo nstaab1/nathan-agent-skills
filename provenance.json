@@ -1,0 +1,244 @@
+{
+  "upstreams": {
+    "mattpocock": {
+      "repo": "mattpocock/skills",
+      "url": "https://github.com/mattpocock/skills.git",
+      "ref": "main",
+      "sha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "paths": [
+        "skills",
+        "LICENSE"
+      ],
+      "strip": 0,
+      "license": "MIT",
+      "holder": "Matt Pocock"
+    },
+    "pstack": {
+      "repo": "cursor/plugins",
+      "url": "https://github.com/cursor/plugins.git",
+      "ref": "main",
+      "path": "pstack",
+      "sha": "60c641e4fad674784b30abcf9f8915dea39df38d",
+      "paths": [
+        "pstack"
+      ],
+      "strip": 1,
+      "license": "MIT",
+      "holder": "Lauren Tan"
+    }
+  },
+  "skills": {
+    "agentic/implement-afk-agentic": {
+      "source": null
+    },
+    "agentic/implement-agentic": {
+      "source": null
+    },
+    "agentic/open-pr-agentic": {
+      "source": null
+    },
+    "agentic/to-tickets-agentic": {
+      "source": null
+    },
+    "engineering/ask-matt": {
+      "source": "mattpocock",
+      "sourcePath": "skills/engineering/ask-matt",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "modified"
+    },
+    "engineering/code-review": {
+      "source": "mattpocock",
+      "sourcePath": "skills/engineering/code-review",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "modified"
+    },
+    "engineering/codebase-design": {
+      "source": "mattpocock",
+      "sourcePath": "skills/engineering/codebase-design",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "verbatim"
+    },
+    "engineering/diagnosing-bugs": {
+      "source": "mattpocock",
+      "sourcePath": "skills/engineering/diagnosing-bugs",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "verbatim"
+    },
+    "engineering/domain-modeling": {
+      "source": "mattpocock",
+      "sourcePath": "skills/engineering/domain-modeling",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "verbatim"
+    },
+    "engineering/grill-with-docs": {
+      "source": "mattpocock",
+      "sourcePath": "skills/engineering/grill-with-docs",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "verbatim"
+    },
+    "engineering/implement": {
+      "source": "mattpocock",
+      "sourcePath": "skills/engineering/implement",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "verbatim"
+    },
+    "engineering/improve-codebase-architecture": {
+      "source": "mattpocock",
+      "sourcePath": "skills/engineering/improve-codebase-architecture",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "verbatim"
+    },
+    "engineering/prototype": {
+      "source": "mattpocock",
+      "sourcePath": "skills/engineering/prototype",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "verbatim"
+    },
+    "engineering/research": {
+      "source": "mattpocock",
+      "sourcePath": "skills/engineering/research",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "verbatim"
+    },
+    "engineering/resolving-merge-conflicts": {
+      "source": "mattpocock",
+      "sourcePath": "skills/engineering/resolving-merge-conflicts",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "verbatim"
+    },
+    "engineering/setup-agent-skills": {
+      "source": "mattpocock",
+      "sourcePath": "skills/engineering/setup-matt-pocock-skills",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "modified"
+    },
+    "engineering/tdd": {
+      "source": "mattpocock",
+      "sourcePath": "skills/engineering/tdd",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "verbatim"
+    },
+    "engineering/to-spec": {
+      "source": "mattpocock",
+      "sourcePath": "skills/engineering/to-spec",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "modified"
+    },
+    "engineering/to-tickets": {
+      "source": "mattpocock",
+      "sourcePath": "skills/engineering/to-tickets",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "modified"
+    },
+    "engineering/triage": {
+      "source": "mattpocock",
+      "sourcePath": "skills/engineering/triage",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "modified"
+    },
+    "engineering/wayfinder": {
+      "source": "mattpocock",
+      "sourcePath": "skills/engineering/wayfinder",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "modified"
+    },
+    "engineering/wizard": {
+      "source": "mattpocock",
+      "sourcePath": "skills/engineering/wizard",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "verbatim"
+    },
+    "productivity/grill-me": {
+      "source": "mattpocock",
+      "sourcePath": "skills/productivity/grill-me",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "verbatim"
+    },
+    "productivity/grilling": {
+      "source": "mattpocock",
+      "sourcePath": "skills/productivity/grilling",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "verbatim"
+    },
+    "productivity/handoff": {
+      "source": "mattpocock",
+      "sourcePath": "skills/productivity/handoff",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "verbatim"
+    },
+    "productivity/teach": {
+      "source": "mattpocock",
+      "sourcePath": "skills/productivity/teach",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "verbatim"
+    },
+    "productivity/to-questionnaire": {
+      "source": "mattpocock",
+      "sourcePath": "skills/productivity/to-questionnaire",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "verbatim"
+    },
+    "productivity/wait-what": {
+      "source": "mattpocock",
+      "sourcePath": "skills/productivity/wait-what",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "verbatim"
+    },
+    "productivity/writing-for-agents": {
+      "source": "mattpocock",
+      "sourcePath": "skills/productivity/writing-for-agents",
+      "upstreamSha": "8b78b531ab965735c5dc74f6f7a219e1e37326df",
+      "vendorCommit": "5567e3066453b2c546cf91387fc1778785585fff",
+      "linked": true,
+      "status": "verbatim"
+    }
+  }
+}
