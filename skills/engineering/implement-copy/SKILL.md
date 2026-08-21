@@ -22,6 +22,6 @@ Use /tdd where possible, at pre-agreed seams.
 
 Run typechecking regularly, single test files regularly, and the full test suite once at the end.
 
-Once done, use /code-review to review the work.
+Once done, use /code-review to review the work. Alongside the review summary, give the user a numbered manual test script: the exact steps to run the changed code by hand, each ending in the observable result that proves the step worked. Cover every user-visible change in the work.
 
 Commit your work to the current branch.
