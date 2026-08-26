@@ -114,6 +114,9 @@
       "linked": true,
       "status": "verbatim"
     },
+    "engineering/open-pr": {
+      "source": null
+    },
     "engineering/prototype": {
       "source": "mattpocock",
       "sourcePath": "skills/engineering/prototype",
