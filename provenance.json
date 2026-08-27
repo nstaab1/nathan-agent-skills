@@ -50,6 +50,9 @@
       "linked": true,
       "status": "modified"
     },
+    "engineering/code-comprehension": {
+      "source": null
+    },
     "engineering/code-review": {
       "source": "mattpocock",
       "sourcePath": "skills/engineering/code-review",
