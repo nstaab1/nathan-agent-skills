@@ -22,6 +22,33 @@ Use /tdd where possible, at pre-agreed seams.
 
 Run typechecking regularly, single test files regularly, and the full test suite once at the end.
 
-Once done, use /code-review to review the work. Alongside the review summary, give the user a numbered manual test script: the exact steps to run the changed code by hand, each ending in the observable result that proves the step worked. Cover every user-visible change in the work.
+Once done, use /code-review to review the work. Alongside the review summary, give the user a manual test script they follow with the app in one hand: read a step, do it, check it, move on.
+
+- Open with a **Setup** line that gets the app to the starting screen.
+- Number every step. A step is **one action** on its own line, followed by an indented `Expect:` line naming the observable result that proves it worked. A step with two verbs, or a `then`, is two steps.
+- When one action changes several things, keep the single action and list each result as its own `Expect:` bullet.
+- Name on-screen targets exactly as they appear, in bold; put text the user types in backticks.
+- Put a heading over each user-visible change in the work, so the reader can see which behaviour a run of steps proves.
+
+Shape:
+
+```
+### Routing a Timebox by Tag
+
+Setup: run `npm start`, open the dev client, open the **Session** tab.
+
+1. Tap **Add Cycle**.
+   Expect: the **New Cycle** sheet opens.
+2. Type `Routed` in the name field.
+   Expect: **Save Cycle** is enabled.
+3. Tap **Skip Timebox**.
+   Expect: a confirmation dialog appears.
+4. Tap **Confirm**.
+   Expect:
+   - the Timebox reads **Ready** with no funnel icon
+   - the lane shows every open entry, including untagged ones
+```
+
+Done when every user-visible change has a heading, and every step under it has one verb and its own `Expect:` line.
 
 Commit your work to the current branch.
