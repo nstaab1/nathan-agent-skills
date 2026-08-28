@@ -20,10 +20,10 @@ Run this manually after `implement-copy` has committed the current branch. The r
    ```
 
    Follow an explicit repository rebase policy when one exists. If integration conflicts, resolve them by the intent of both branches and finish the merge or rebase before continuing.
-4. Run the repository's relevant automated checks after integration. Run every manual test needed to cover user-visible behavior, or preserve the numbered manual test script for the user when the check requires their access or judgment. In either case, give the user a reproducible manual test script whose every step names its expected observable result.
+4. Run each of the repository's relevant automated checks once after integration. A failure gets exactly one rerun, to tell a flake from a defect. Fix a defect you can name; on anything else — a repeat failure you cannot explain, or a rerun that passes — halt and report both outputs verbatim, so the user makes the call. Run every manual test needed to cover user-visible behavior, or preserve the numbered manual test script for the user when the check requires their access or judgment. In either case, give the user a reproducible manual test script whose every step names its expected observable result.
 5. Push the topic branch to `origin`. Check whether it already has an open PR; return that PR instead of creating a duplicate.
 
-Preparation is complete only when `git status` is clean, `git merge-base --is-ancestor origin/<base-branch> HEAD` succeeds, the checks are accounted for, and the remote topic branch contains `HEAD`.
+Preparation is complete only when `git status` is clean, `git merge-base --is-ancestor origin/<base-branch> HEAD` succeeds, every check has passed or been halted on and reported, and the remote topic branch contains `HEAD`.
 
 ## Build the PR body
 
