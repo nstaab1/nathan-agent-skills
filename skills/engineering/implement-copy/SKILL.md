@@ -22,7 +22,9 @@ Use /tdd where possible, at pre-agreed seams.
 
 Run typechecking regularly, single test files regularly, and the full test suite once at the end.
 
-Once done, use /code-review to review the work. Alongside the review summary, give the user a manual test script they follow with the app in one hand: read a step, do it, check it, move on.
+Once done, use /code-review to review the work, then commit to the current branch.
+
+Close the run with one **self-contained** message: the review summary, and under it a manual test script the user follows with the app in one hand — read a step, do it, check it, move on. Everything the reader needs is in that message, written out. A script drafted earlier in the run — while the review was still running, say — is written out again here, in full.
 
 - Open with a **Setup** line that gets the app to the starting screen.
 - Number every step. A step is **one action** on its own line, followed by an indented `Expect:` line naming the observable result that proves it worked. A step with two verbs, or a `then`, is two steps.
@@ -49,6 +51,4 @@ Setup: run `npm start`, open the dev client, open the **Session** tab.
    - the lane shows every open entry, including untagged ones
 ```
 
-Done when every user-visible change has a heading, and every step under it has one verb and its own `Expect:` line.
-
-Commit your work to the current branch.
+Done when the closing message carries the review summary and the whole script, every user-visible change has a heading, and every step under it has one verb and its own `Expect:` line.
