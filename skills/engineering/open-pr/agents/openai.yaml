@@ -1,6 +1,6 @@
 interface:
   display_name: "Open PR"
-  short_description: "Sync the base branch and open a pull request"
-  default_prompt: "Use $open-pr to synchronize this branch and open its pull request."
+  short_description: "Sync the base branch, open a pull request, and watch its checks"
+  default_prompt: "Use $open-pr to synchronize this branch, open its pull request, and watch its checks."
 policy:
   allow_implicit_invocation: false
