@@ -20,11 +20,35 @@ Start writing code once `git status` shows a clean tree on the new branch and `g
 
 Use /tdd where possible, at pre-agreed seams.
 
-Run typechecking regularly, single test files regularly, and the full test suite once at the end.
+Run typechecking and single test files regularly.
 
-Once done, use /code-review to review the work, then commit to the current branch.
+`code-review` reads committed work, so commit before reviewing:
 
-Close the run with one **self-contained** message in four parts, in this order: the review summary, the manual test script, **Next actions**, and **Least confident**. Everything the reader needs is in that message, written out. A script drafted earlier in the run — while the review was still running, say — is written out again here, in full.
+1. Commit the work to the current branch.
+2. Run /code-review with `origin/<base>` as the fixed point.
+3. Split its findings. A **mechanical** finding names a defect or a standards breach with one clear fix: apply it. A **judgment** finding is a trade-off or a style call: leave the code as-is and give a one-line reason.
+4. Run the full test suite once.
+5. Amend the commit so it carries the fixes and, as the last section of its body, the **code review record**. The branch is unpushed, so the amend rewrites nothing shared.
+
+The record is the single source for the review: the closing message repeats it, and `open-pr` copies it into the PR. Its shape is its length cap: one line per finding, cited by `file:line`, wrapped at 72 columns. The heading is a plain `Code review` line, since commit cleanup can strip lines that start with `#`.
+
+```
+Code review
+
+Standards:
+- src/timebox/lane.ts:42 — possible Feature Envy in routeEntry — left:
+  it reads the tag once; moving it would split the reducer
+- src/timebox/lane.ts:80 — Mysterious Name `fn2` — fixed
+Spec:
+- no findings
+
+Standards: 2 findings, 1 left.
+Spec: 0 findings.
+```
+
+Each finding line reads `file:line — finding — fixed` or `file:line — finding — left: <reason>`; each axis ends with its totals line. When the review skipped the Spec axis, its list and its totals line both read `no spec available`.
+
+Close the run with one **self-contained** message in four parts, in this order: the code review record as committed, the manual test script, **Next actions**, and **Least confident**. Everything the reader needs is in that message, written out. A script drafted earlier in the run — while the review was still running, say — is written out again here, in full.
 
 The manual test script is followed with the app in one hand: read a line, do it, check it, move on. Every line the reader acts on carries **one action**, so no line has to be split into parts before it can be followed.
 
@@ -73,4 +97,4 @@ Shape:
 1. Untagged entries landing in the lane: inferred from the reducer, the spec is silent; run step 4 with an entry that has no tag.
 ```
 
-Done when the closing message carries all four parts, every user-visible change has a heading, every acted-on line (Setup bullets included) has one verb, every step has its own `Expect:` line, and **Least confident** names at least one item.
+Done when the commit body ends with the code review record and every finding in it is marked `fixed` or `left`, the closing message carries all four parts, every user-visible change has a heading, every acted-on line (Setup bullets included) has one verb, every step has its own `Expect:` line, and **Least confident** names at least one item.

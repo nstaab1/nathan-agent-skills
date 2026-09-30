@@ -22,6 +22,10 @@ Use this as the starting point when the repository has no pull request template.
 1. <!-- Exact action from a cold start -->
    - Expected: <!-- Observable result that proves this step worked -->
 
+## Code review
+
+<!-- The review record from the implementation commit: the reviewed commit, then each finding marked fixed or left with a reason. Or `N/A — no review recorded for this branch`. -->
+
 ## Issues and dependencies
 
 <!-- Add `Closes #123` for each issue completed by this PR, or explain why none applies. -->
@@ -44,4 +48,4 @@ Use this as the starting point when the repository has no pull request template.
 <!-- Deployment order, data migration, feature flag, or `N/A — no special rollout`. -->
 ```
 
-The required core is Summary, Changes, Verification with a numbered manual test script, and Issues and dependencies. Keep the remaining sections when they surface decisions or operational risk in that repository; remove them from the committed template when contributors would repeatedly fill them with noise.
+The required core is Summary, Changes, Verification with a numbered manual test script, Code review, and Issues and dependencies. Keep the remaining sections when they surface decisions or operational risk in that repository; remove them from the committed template when contributors would repeatedly fill them with noise.

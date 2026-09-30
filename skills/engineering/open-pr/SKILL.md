@@ -29,11 +29,15 @@ Preparation is complete only when `git status` is clean, `git merge-base --is-an
 
 Inspect the full diff and commits from `origin/<base-branch>...HEAD`. Resolve issue relationships from the user's request, branch name, commits, and repository issue-tracker conventions; never invent an issue number or claim that work closes an issue when it does not.
 
+Find the **code review record**: the `Code review` section `implement-copy` leaves last in a commit body on this branch, taking the latest commit that carries one. The PR's `## Code review` section carries the record verbatim, opened with a stamp naming the reviewed commit and the non-merge commits after it, which the review does not cover: `Reviewed at <sha>; 2 commits since are unreviewed.` or `Reviewed at <sha>; nothing since.` Without a record, the section reads `N/A — no review recorded for this branch`.
+
 Search case-insensitively for a single-template file named `pull_request_template.md` under the repository root, `docs/`, or `.github/`, and for selectable Markdown templates under `.github/PULL_REQUEST_TEMPLATE/`.
 
-- With one applicable repository template, use its headings, order, and checklists as the exact structure. Follow its comments as instructions, replace its placeholders, and omit instructional comments from the submitted body.
+- With one applicable repository template, use its headings, order, and checklists as the exact structure. Follow its comments as instructions, replace its placeholders, and omit instructional comments from the submitted body. When it has no section for the code review record, ask the user whether to add `## Code review` to the template; on no, append the section after the template's sections in this PR's body only.
 - With several plausible templates, ask the user which one applies.
-- With no repository template, read [the default PR template](references/default-pr-template.md). Show it to the user and ask whether to add it at `.github/pull_request_template.md`, tailor it first, or use it only for this PR. Continue once the user chooses; adding the repository file also requires committing and synchronizing that change before opening the PR.
+- With no repository template, read [the default PR template](references/default-pr-template.md). Show it to the user and ask whether to add it at `.github/pull_request_template.md`, tailor it first, or use it only for this PR. Continue once the user chooses.
+
+Any change to the repository's template, whether adding the default one or a section to an existing one, is committed and synchronized before the PR opens.
 
 Fill every applicable section from evidence. Distinguish automated checks already run from the manual test script the user still needs to perform. Use GitHub closing syntax only for work this PR completes; list related and newly unblocked work separately. Mark a required section `N/A` with a short reason when it does not apply.
 
@@ -67,4 +71,4 @@ Watching is complete only when no check is pending, every red check has been tri
 
 ## Report
 
-Report the PR URL, base and topic branches, local checks run, the final state of every PR check, each defect fixed after opening, each flake with the user's decision and any ticket filed, manual testing left for the user, and the closing, related, and unblocked issue links.
+Report the PR URL, base and topic branches, the code review record's stamp or its absence, local checks run, the final state of every PR check, each defect fixed after opening, each flake with the user's decision and any ticket filed, manual testing left for the user, and the closing, related, and unblocked issue links.
