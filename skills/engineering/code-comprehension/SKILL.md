@@ -24,7 +24,7 @@ Done when the ref resolves and there is a non-empty change to walk.
 Every explanation carries a provenance label. Two kinds:
 
 - **From the session**: this conversation contains the work, so rejected alternatives and intent are known.
-- **Inferred from \<evidence\>**: reconstructed from, in order, commit messages → the issue (via `docs/agents/issue-tracker.md` when present) → spec files under `docs/`, `specs/`, `.scratch/` → `CONTEXT.md` and `docs/adr/`. Every source is optional; a missing source only makes more whys inferred.
+- **Inferred from \<evidence\>**: reconstructed from, in order, commit messages → the issue (via `docs/agents/issue-tracker.md` when present) → spec files under `docs/`, `specs/`, `.scratch/` → `GLOSSARY.md` (or the per-context glossaries `GLOSSARY-MAP.md` points to) and `docs/adr/`. Every source is optional; a missing source only makes more whys inferred.
 
 Read what exists before carving sections. Done when each candidate section has a why and its label.
 
