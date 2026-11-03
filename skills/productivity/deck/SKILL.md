@@ -63,7 +63,15 @@ A **block** is one row of the deck's plan file, a segment of the run of show.
 
 ## Demo slides
 
-A **demo** is a live run on stage. Each demo has one demo slide, marked `demo: true` in its frontmatter. It is the slide that's up during the live run, and the recorded fallback goes there later. Its notes carry the demo's command and fallback cue.
+A **demo** is a live run on stage. Each demo has one demo slide, marked in its frontmatter with the demo's name:
+
+```md
+---
+demo: madam-eva
+---
+```
+
+The name is kebab case and unique in the deck. A demo that fills a whole block takes the block id, such as `demo: rs1`. The demo slide is up during the live run, and the recorded fallback goes there later under the same name, such as `madam-eva.mp4`. Its notes carry the demo's command and fallback cue.
 
 ## Speaker notes
 
