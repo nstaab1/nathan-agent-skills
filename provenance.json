@@ -216,6 +216,9 @@
       "linked": true,
       "status": "verbatim"
     },
+    "productivity/deck": {
+      "source": null
+    },
     "productivity/grill-me": {
       "source": "mattpocock",
       "sourcePath": "skills/productivity/grill-me",
