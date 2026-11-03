@@ -168,6 +168,9 @@
       "linked": true,
       "status": "modified"
     },
+    "engineering/setup-bugbot": {
+      "source": null
+    },
     "engineering/tdd": {
       "source": "mattpocock",
       "sourcePath": "skills/engineering/tdd",
