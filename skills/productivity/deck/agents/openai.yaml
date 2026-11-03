@@ -1,0 +1,3 @@
+interface:
+  display_name: "Deck"
+  short_description: "Slides and notes for Slidev decks"
