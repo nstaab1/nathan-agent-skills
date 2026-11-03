@@ -1,0 +1,6 @@
+interface:
+  display_name: "Setup Bugbot"
+  short_description: "Configure Cursor Bugbot PR reviews for this repo"
+  default_prompt: "Use $setup-bugbot to configure Bugbot reviews for this repository."
+policy:
+  allow_implicit_invocation: false
