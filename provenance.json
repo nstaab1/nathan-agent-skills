@@ -152,6 +152,9 @@
       "linked": true,
       "status": "verbatim"
     },
+    "engineering/resolving-pr-comments": {
+      "source": null
+    },
     "engineering/retro": {
       "source": "mattpocock",
       "sourcePath": "skills/engineering/retro",
