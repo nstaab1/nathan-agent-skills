@@ -1,0 +1,3 @@
+interface:
+  display_name: "Resolving PR Comments"
+  short_description: "Work PR review comments in rounds without drifting from the PR's intent"
