@@ -31,7 +31,7 @@ The prompt for a step 4 subagent. Fill the placeholders and send it as the whole
 >
 > Fetch, then merge the base's fetched remote-tracking ref, such as `origin/<base>`, into the branch, not the local <base> branch, so the history the reviewers commented on stays as it is and the push stays a normal one. Resolve each conflict to keep what both sides meant. Where they truly clash, stop and report the clash.
 >
-> Before staging each resolved file, count its marker lines with `grep -cE '^(<<<<<<< |=======$|>>>>>>> )' <file>`, as its own command. The count must match the same grep on the base and branch versions of that file, `git show origin/<base>:<file>` and `git show HEAD:<file>`, and is usually 0. Then typecheck and run the tests that cover the conflicted files.
+> Before staging each resolved file, list its marker lines with `grep -nE '^(<<<<<<< |=======$|>>>>>>> )' <file>`, as its own command. It usually prints nothing. If it prints a line, read the lines around it: keep it only if it is real content from the base or branch version, such as a Markdown heading underline, and say so in your report. Then typecheck and run the tests that cover the conflicted files.
 >
 > Commit the merge. Leave pushing to the orchestrator.
 >
