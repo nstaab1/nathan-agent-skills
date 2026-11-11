@@ -31,7 +31,7 @@ The prompt for a step 4 subagent. Fill the placeholders and send it as the whole
 >
 > Fetch, then merge the base's fetched remote-tracking ref, such as `origin/<base>`, into the branch, not the local <base> branch, so the history the reviewers commented on stays as it is and the push stays a normal one. Resolve each conflict to keep what both sides meant. Where they truly clash, stop and report the clash.
 >
-> Before staging each resolved file, count its marker lines with `grep -cE '^(<<<<<<< |=======$|>>>>>>> )' <file>`, as its own command. Run the same grep on the base and branch versions of that file, `git show origin/<base>:<file>` and `git show HEAD:<file>`. The resolved file's count must not exceed the higher of those two counts, which is usually 0. A higher count means a conflict block is still in the file. Then typecheck and run the tests that cover the conflicted files.
+> Before staging each resolved file, count its conflict block lines with `grep -cE '^(<<<<<<< |>>>>>>> )' <file>`, as its own command, and its separator lines with `grep -cE '^=======$' <file>`. Run both on the base and branch versions of that file, `git show origin/<base>:<file>` and `git show HEAD:<file>`. Neither count in the resolved file may exceed the base and branch counts added together, which is usually 0. A higher block count means a conflict block is still in the file. A higher separator count means a stray `=======` is. Then typecheck and run the tests that cover the conflicted files.
 >
 > Commit the merge. Leave pushing to the orchestrator.
 >
