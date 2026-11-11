@@ -28,6 +28,10 @@ Done when the anchor is a numbered list every later verdict can cite.
 
 Fetch every inline comment, review body, conversation comment and check, and whether the branch conflicts with its base. Read review bodies in full: an automated reviewer's summary can list issues that have no inline comment.
 
+Fetch every page. A list that stops at its first page hides the newest comments and replies, and the settled rule below reads the newest. When the PR doc's command doesn't page through all results, fix the doc first.
+
+One claim often arrives from several sources: an inline comment, a review body and a summary, from one reviewer or two. Merge them into one item that lists every source, so the claim gets one verdict and one reply per thread.
+
 Earlier rounds are on the PR itself. Each reply posted in step 6 starts with its verdict, so the replies are the record of what was fixed, declined and deferred. An item is settled only while the last reply in its thread is one of yours that starts with a verdict, as listed in step 6. An item with no thread, such as a conversation comment or an issue listed only in a review body, gets its verdict as a PR comment that starts with the verdict and links the source item. It is settled while that verdict comment is the newest comment linking it. Every other item is **new**, including one where someone replied after your verdict reply, which reopens it. Ask items never got a reply, so they come back as new until the developer decides.
 
 Rerun each failing check as the PR doc says, to tell a flake from a real failure.
@@ -36,7 +40,7 @@ Done when every new item is listed and every failing check is classed flaky or r
 
 ## 3. Triage
 
-Build one table, one row per new item:
+Build one table, one row per new item. An item is a claim, so sources that make the same claim share a row:
 
 | # | Item | Verdict | Anchor | Miss | Prevention |
 | --- | --- | --- | --- | --- | --- |
