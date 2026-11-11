@@ -11,6 +11,6 @@ The doc has six sections. Each holds the commands, with placeholders like `<pr>`
 5. **Fresh review**: how an automated reviewer is asked to review again, or that it reviews every push on its own, or that the host has none.
 6. **Checkout**: where to check out a PR's branch, and the setup a fresh checkout needs before tests run.
 
-After the doc is written, add a "Pull requests" entry for it to the repo's `AGENTS.md` where the other `docs/agents` files are listed, so agents other than this skill find it.
+After the doc is written, add a "Pull requests" entry for it to the repo's existing instruction file, `AGENTS.md` or `CLAUDE.md`, where the other `docs/agents` files are listed, so agents other than this skill find it.
 
-Done when every section has a command the developer has seen work, or is marked untried, and `AGENTS.md` links the doc.
+Done when every section has a command the developer has seen work, or is marked untried, and the repo's existing instruction file links the doc.

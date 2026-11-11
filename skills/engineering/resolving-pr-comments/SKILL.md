@@ -12,7 +12,7 @@ Four words carry this skill:
 - **Verdict**: Fix, Decline, Defer or Ask. See step 3.
 - **Miss**: the earliest stage that should have caught a valid comment before review.
 
-Every PR operation below follows the consumer repo's `docs/agents/pull-requests.md`: finding the PR, reading comments, replying, resolving threads, checks, a fresh automated review, and the checkout. Tickets follow `docs/agents/issue-tracker.md`. When `pull-requests.md` is missing, stop and offer to write it with the developer using [PULL-REQUESTS-DOC.md](PULL-REQUESTS-DOC.md). Resume once it exists.
+Every PR operation below follows the consumer repo's `docs/agents/pull-requests.md`: finding the PR, reading comments, replying, resolving threads, checks, a fresh automated review, and the checkout. Tickets follow `docs/agents/issue-tracker.md`. When `pull-requests.md` is missing, stop and offer to write it with the developer using [PULL-REQUESTS-DOC.md](PULL-REQUESTS-DOC.md). Resume once it exists. When the doc exists but the repo's existing instruction file, `AGENTS.md` or `CLAUDE.md`, doesn't link it, add the "Pull requests" entry as [PULL-REQUESTS-DOC.md](PULL-REQUESTS-DOC.md) says.
 
 ## 1. Pin the anchor
 
@@ -28,15 +28,15 @@ Done when the anchor is a numbered list every later verdict can cite.
 
 Fetch every inline comment, review body, conversation comment and check, and whether the branch conflicts with its base. Read review bodies in full: an automated reviewer's summary can list issues that have no inline comment.
 
-Fetch every page. A list that stops at its first page hides the newest comments and replies, and the settled rule below reads the newest. When the PR doc's command doesn't page through all results, fix the doc first.
+Fetch every page. A list that stops at its first page hides the newest comments and replies, and the settled rule below reads the newest. Read each list command in the PR doc for `--paginate` or a `hasNextPage` loop. When the PR doc's command doesn't page through all results, fix the doc first.
 
 One claim often arrives from several sources: an inline comment, a review body and a summary, from one reviewer or two. Merge them into one item that lists every source, so the claim gets one verdict and one reply per thread.
 
-Earlier rounds are on the PR itself. Each reply posted in step 6 starts with its verdict, so the replies are the record of what was fixed, declined and deferred. An item is settled only while the last reply in its thread is one of yours that starts with a verdict, as listed in step 6. An item with no thread, such as a conversation comment or an issue listed only in a review body, gets its verdict as a PR comment that starts with the verdict and links the source item. It is settled while that verdict comment is the newest comment linking it. Every other item is **new**, including one where someone replied after your verdict reply, which reopens it. Ask items never got a reply, so they come back as new until the developer decides.
+Earlier rounds are on the PR itself. Each reply posted in step 6 starts with its verdict, so the replies are the record of what was fixed, declined and deferred. An item is settled only while the last reply in its thread is one of yours that starts with a verdict, as listed in step 6. An item with no thread, such as a conversation comment or an issue listed only in a review body, gets its verdict as a PR comment that starts with the verdict and links the source item. It is settled while that verdict comment is the newest comment linking it. A merged item is settled only while every one of its sources is settled. Every other item is **new**, including one where someone replied after your verdict reply, which reopens it. Ask items never got a reply, so they come back as new until the developer decides.
 
 Rerun each failing check as the PR doc says, to tell a flake from a real failure.
 
-Done when every new item is listed and every failing check is classed flaky or real.
+Done when every list command was run to its last page, every new item is listed and every failing check is classed flaky or real.
 
 ## 3. Triage
 
@@ -98,13 +98,13 @@ Push. Reply to each triaged item, starting with its verdict:
 - `Deferred to <ticket link>:` then why it sits outside this PR. Create the ticket first.
 - Ask items get no reply yet.
 
-Reply to an item with no thread with a PR comment that starts with its verdict and links the source item.
+Reply to an item with no thread with a PR comment that starts with its verdict and links the source item. A merged item gets its verdict reply on every source thread, and a linking PR comment for every source with no thread.
 
 Resolve the threads automated reviewers opened once their fix has landed. Leave threads people opened for those people. Ask for a fresh automated review when the PR doc says how.
 
 Then fetch the PR once more. Automated reviewers sometimes post more comments after their first review.
 
-Done when every triaged item except Ask has a reply.
+Done when every triaged item except Ask has a reply on every source.
 
 ## 7. Report
 
