@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runVerdict, junit, passed, failed, lineAbout } from './harness.mjs';
-import { startFakeGitHub, unreachableUrl } from './fake-github.mjs';
+import { runVerdict, junit, passed, failed, lineAbout, recordingTo, withTracker, occurrencesOn, OCCURRENCE } from './harness.mjs';
+import { unreachableUrl } from './fake-github.mjs';
 
 // The failures this guards: a flake occurrence that never reaches its
 // flaky-test record, a record created twice for one test, a run counted twice
@@ -18,37 +18,6 @@ const flaking = (...tests) => ({
     { exit: 0, xml: junit(passed('tests.test_cart', 'test_add_item'), ...tests.map(([c, n]) => passed(c, n))) },
   ],
 });
-
-// The settings that point the script at the fake tracker, as one CI job.
-const recordingTo = (tracker, { branch = 'feature/cart', job = 'test', run = '4242' } = {}) => ({
-  flags: [
-    '--tracker-url', tracker.url,
-    '--repo', tracker.repo,
-    '--branch', branch,
-    '--job', job,
-    '--run', run,
-    '--run-url', `https://ci.example/acme/shop/runs/${run}`,
-  ],
-  env: { VERDICT_TRACKER_TOKEN: tracker.token },
-});
-
-// The flake occurrences on a record, read from each comment's occurrence
-// marker in the form the script's header documents.
-const OCCURRENCE = /^<!-- verdict-occurrence (\{.*\}) -->$/m;
-const occurrencesOn = (record) =>
-  record.comments.flatMap((comment) => {
-    const marker = comment.match(OCCURRENCE);
-    return marker ? [JSON.parse(marker[1])] : [];
-  });
-
-const withTracker = async (options, body) => {
-  const tracker = await startFakeGitHub(options);
-  try {
-    await body(tracker);
-  } finally {
-    await tracker.close();
-  }
-};
 
 test('a first flake occurrence creates a flaky-test record titled with the test identity, labelled flaky and ready-for-agent', () =>
   withTracker({}, async (tracker) => {

@@ -1,13 +1,14 @@
 #!/usr/bin/env node
-// verdict.mjs version 0.2.0
+// verdict.mjs version 0.3.0
 //
 // The verdict script. It runs a CI job's test command, reruns the failures
 // once, records each flake occurrence on the test's flaky-test record in the
-// issue tracker, and decides whether the build passes. All it reads from the
-// test framework is the exit code and the JUnit XML results file. It needs
-// only Node, with no dependencies.
+// issue tracker, quarantines a test whose record has enough of them, and
+// decides whether the build passes, ignoring failures of quarantined tests.
+// All it reads from the test framework is the exit code and the JUnit XML
+// results file. It needs only Node, with no dependencies.
 //
-//   node verdict.mjs --results <file> [--rerun <command>] [--summary <file>] [tracker settings] -- <test command>
+//   node verdict.mjs --results <file> [--rerun <command>] [--summary <file>] [tracker settings] [quarantine settings] -- <test command>
 //
 //   --results  The JUnit XML file the test command writes. Required. It is
 //              deleted before each attempt, so a stale file is never read.
@@ -30,7 +31,7 @@
 //      given, the whole test command otherwise.
 //   4. For each test that failed in attempt 1: passed in attempt 2 is a flake
 //      occurrence and doesn't fail the build. Failed again, skipped or left
-//      out of attempt 2 fails it.
+//      out of attempt 2 fails it, unless the test is quarantined.
 //   5. An attempt that writes no readable results file fails the build, and
 //      so does a rerun that exits non-zero with no failed test.
 //
@@ -67,6 +68,16 @@
 // with `permissions: issues: write`, passed as
 // `env: GITHUB_TOKEN: ${{ github.token }}`. While a setting is missing, every
 // occurrence goes unrecorded and the run summary names what is missing.
+// Without --repo or a token, the quarantine list isn't read either.
+//
+// Quarantine settings. The CI doc records the same values, and the workflow
+// passes them here.
+//
+//   --quarantine-label  The label that quarantines a flaky-test record.
+//                       Defaults to quarantined.
+//   --quarantine-cap    The most tests that may be quarantined at once: a
+//                       whole percentage of the suite, such as 5%, or a whole
+//                       number of tests, such as 12. Defaults to 5%.
 //
 // Recording a flake occurrence:
 //   1. Find the test's record: the issue carrying the flaky label whose title
@@ -79,17 +90,56 @@
 //      and ready-for-agent.
 //   3. A record that already holds an occurrence with this --run: leave it.
 //      Every job of a run runs the script, and the run is one occurrence.
-//   4. A closed record: reopen it.
+//   4. A closed record: take off the quarantine label if it kept one, then
+//      reopen it.
 //   5. Add the occurrence as a comment on the record.
+//   6. Quarantine the test if this occurrence brings it to quarantine.
 //
-// So a job sends one listing request per 100 records, and per occurrence: for
-// a new record, a create and a comment; for an existing one, one request per
-// 100 of its comments, then a reopen if it was closed, then a comment.
-// Nothing is sent when the run has no flake occurrence.
+// Quarantine. A test is quarantined while its record is open and carries the
+// quarantine label, so closing the record ends it. The script reads the
+// quarantine list from the same listing of records, and a quarantined test
+// that failed attempt 1 and didn't pass attempt 2 doesn't fail the build.
+// The script never takes the label off an open record; the scheduled
+// flaky-test agent removes it when quarantine expires.
 //
-// A tracker that can't be reached, or that refuses a request, as GitHub does
-// a fork PR's read-only token, leaves the verdict as it was. The run summary
-// says the occurrence was not recorded, and why.
+// A record enters quarantine when, after an occurrence is recorded, its
+// occurrences that count number at least 3 and span at least 2 branches, and
+// the cap allows one more. The occurrences that count are read from the
+// record's markers, and are:
+//   - those from the last one holding "reopened":true on, that one included,
+//     so a fixed test that flakes again starts a new count;
+//   - of those, the ones dated no more than 30 days before this run;
+//   - with each run counted once, should two of its jobs both record it.
+// A record that was closed while quarantined keeps its label. The occurrence
+// that reopens it takes the label off first, so the record leaves quarantine
+// and its count starts again at 1.
+//
+// The cap. The quarantined tests are the open records carrying the quarantine
+// label, across the whole repo, plus any this job quarantines. A whole-number
+// cap is the most there may be. A percentage cap is a share of the suite,
+// which is every test identity in attempt 1's results file, skipped ones
+// included, rounded down: at 5%, a suite of 39 tests allows 1, of 40 allows 2,
+// and of fewer than 20 allows none. Each job sizes the suite from its own
+// results file, so in a repo whose jobs run different tests, or shards of one
+// suite, a percentage cap is stricter than it reads; give a whole number
+// there. Jobs of one run read the list at the same time, so each can
+// quarantine a test and together pass the cap by one per extra job.
+//
+// Tracker requests. A job sends none when no test failed attempt 1. Otherwise
+// it sends one listing request per 100 records, which also serves the
+// quarantine list.
+// Then, per occurrence: for a new record, a create and a comment; for an
+// existing one, one request per 100 of its comments, then, if it was closed, a
+// label removal when it kept the quarantine label and a reopen, then a
+// comment; and one label request when the occurrence quarantines the test. A
+// test that failed both attempts costs nothing beyond the listing.
+//
+// A tracker that can't be reached never lets a failure through: nothing is
+// quarantined, so a quarantined test that fails both attempts fails the build,
+// and the run summary says the quarantine list was not read, and why. A
+// tracker that refuses a write, as GitHub does a fork PR's read-only token,
+// still answers the listing, so quarantine holds. Either way the run summary
+// says an occurrence was not recorded, or a test not quarantined, and why.
 //
 // The occurrence comment: lines for people giving the date, branch, job and
 // run link, then a last line, hidden when rendered, holding the same facts
@@ -106,14 +156,21 @@
 // keys, and these keys keep their meaning.
 //
 // The run summary is Markdown: a "### Verdict: pass" or "### Verdict: fail"
-// heading, then one bullet per reason the build fails and one per flake
-// occurrence. An occurrence's bullet names the test as `<classname> <name>`,
-// then links the record it was recorded on, or says why it was not recorded.
+// heading; then, when the cap kept a test out of quarantine, a "> [!WARNING]"
+// block saying so for each such test; then one bullet per reason the build
+// fails, one saying the quarantine list was not read when that left a failure
+// standing, one per failure ignored because its test is quarantined, and one
+// per flake occurrence. An occurrence's bullet names the test as
+// `<classname> <name>`, then links the record it was recorded on, or says why
+// it was not recorded. A recorded occurrence's bullet then gives its count
+// toward quarantine, such as "Quarantine count: 2 occurrences on 1 branch in
+// 30 days (it takes 3 on at least 2).", and ends "Now quarantined",
+// "Already quarantined" or "Not quarantined" when one of those applies.
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, readFileSync, rmSync } from 'node:fs';
 
 const USAGE =
-  'usage: node verdict.mjs --results <file> [--rerun <command>] [--summary <file>] [tracker settings] -- <test command>';
+  'usage: node verdict.mjs --results <file> [--rerun <command>] [--summary <file>] [tracker settings] [quarantine settings] -- <test command>';
 
 // Settings ----------------------------------------------------------------
 
@@ -136,6 +193,8 @@ const FLAGS = [
         : undefined,
   },
   { flag: '--flaky-label', fallback: 'flaky-test' },
+  { flag: '--quarantine-label', fallback: 'quarantined' },
+  { flag: '--quarantine-cap', fallback: '5%' },
 ];
 
 // --tracker-url is settings.trackerUrl.
@@ -158,6 +217,9 @@ const readSettings = (argv, env) => {
   for (const row of FLAGS) settings[key(row.flag)] ??= row.env?.(env) || row.fallback;
   if (!settings.results) return { problem: 'no --results file' };
   if (settings.command.length === 0) return { problem: 'no test command after --' };
+  if (!/^\d+%?$/.test(settings.quarantineCap)) {
+    return { problem: `--quarantine-cap takes a whole percentage of the suite, such as 5%, or a whole number of tests, not "${settings.quarantineCap}"` };
+  }
   return { settings };
 };
 
@@ -275,10 +337,14 @@ const exitOf = ({ status, signal, error }) => {
 
 // The verdict -------------------------------------------------------------
 
-// Runs the attempts and returns the reasons the build fails, and the tests
-// with a flake occurrence, which don't fail it.
+// Runs the attempts and returns the reasons the build fails; the tests that
+// failed attempt 1 and didn't pass attempt 2, each with the sentence saying
+// so, which fail the build unless quarantined; and the tests with a flake
+// occurrence, which don't fail it. Also the size of the suite: how many tests
+// attempt 1's results file holds.
 const judge = (settings) => {
   const buildFailures = [];
+  const stillFailing = [];
   const occurrences = [];
 
   const attempt1 = runTestCommand(settings.results, settings.command);
@@ -287,15 +353,16 @@ const judge = (settings) => {
     buildFailures.push(
       `Attempt 1 wrote no readable results file at \`${settings.results}\`, and the test command ${exitOf(attempt1)}.`,
     );
-    return { buildFailures, occurrences };
+    return { buildFailures, stillFailing, occurrences, suite: 0 };
   }
 
+  const suite = results1.size;
   const failures = failedIn(results1);
   if (failures.length === 0) {
     if (attempt1.status !== 0) {
       buildFailures.push(`The test command ${exitOf(attempt1)} with no failed test in the results file.`);
     }
-    return { buildFailures, occurrences };
+    return { buildFailures, stillFailing, occurrences, suite };
   }
 
   const attempt2 = settings.rerun
@@ -316,23 +383,27 @@ const judge = (settings) => {
     if (rerun?.outcome === 'passed') {
       occurrences.push(testcase);
     } else if (rerun?.outcome === 'failed') {
-      buildFailures.push(`Failed on both attempts: ${test}.`);
+      stillFailing.push({ testcase, failure: `Failed on both attempts: ${test}.` });
     } else {
-      buildFailures.push(`No result on attempt 2: ${test} failed on attempt 1 and the rerun did not report it.`);
+      stillFailing.push({
+        testcase,
+        failure: `No result on attempt 2: ${test} failed on attempt 1 and the rerun did not report it.`,
+      });
     }
   }
-  return { buildFailures, occurrences };
+  return { buildFailures, stillFailing, occurrences, suite };
 };
 
 // The tracker -------------------------------------------------------------
 
 const TRACKER_TIMEOUT_MS = 30_000;
 
-// A tracker request that failed. Its message completes "Not recorded: ".
+// A tracker request that failed. Its message completes "Not recorded: " and
+// "Quarantine not read: ".
 class TrackerError extends Error {}
 
 // The GitHub adapter: the tracker operations the script uses, over GitHub's
-// REST API.
+// REST API. A record is { number, title, url, open, labels }.
 const githubTracker = ({ trackerUrl, repo, token }) => {
   const issues = `${trackerUrl.replace(/\/+$/, '')}/repos/${repo}/issues`;
 
@@ -376,7 +447,13 @@ const githubTracker = ({ trackerUrl, repo, token }) => {
     return items;
   };
 
-  const record = (issue) => ({ number: issue.number, title: issue.title, url: issue.html_url, open: issue.state === 'open' });
+  const record = (issue) => ({
+    number: issue.number,
+    title: issue.title,
+    url: issue.html_url,
+    open: issue.state === 'open',
+    labels: (issue.labels ?? []).map((label) => label.name ?? label),
+  });
 
   return {
     // Every record carrying the flaky label, open or closed.
@@ -397,13 +474,45 @@ const githubTracker = ({ trackerUrl, repo, token }) => {
     addComment: async (target, body) => {
       await call('comment on the record', 'POST', `${issues}/${target.number}/comments`, { body });
     },
+    addLabel: async (target, label) => {
+      await call('label the record', 'POST', `${issues}/${target.number}/labels`, { labels: [label] });
+    },
+    removeLabel: async (target, label) => {
+      await call('unlabel the record', 'DELETE', `${issues}/${target.number}/labels/${encodeURIComponent(label)}`);
+    },
   };
+};
+
+// The settings named by these flags, and the token, that are missing.
+const lacking = (settings, flags) => [
+  ...flags.filter((flag) => !settings[key(flag)]),
+  ...(settings.token ? [] : ['a token in VERDICT_TRACKER_TOKEN or GITHUB_TOKEN']),
+];
+
+// What went wrong with the tracker, as a phrase that completes "Not recorded: ".
+const trackerProblem = (error, doing) =>
+  error instanceof TrackerError ? error.message : `the script failed while ${doing} (${error.message})`;
+
+// The tracker and every flaky-test record, read once per job, or { problem }
+// saying why they can't be read. One listing serves both the quarantine list
+// and recording.
+const readRecords = async (settings) => {
+  const missing = lacking(settings, ['--repo']);
+  if (missing.length > 0) return { problem: `the tracker settings lack ${listOf(missing)}` };
+  const tracker = githubTracker(settings);
+  try {
+    return { tracker, records: await tracker.listRecords(settings.flakyLabel) };
+  } catch (error) {
+    return { problem: trackerProblem(error, 'reading the records') };
+  }
 };
 
 // Flake occurrences -------------------------------------------------------
 
 const listOf = (items) =>
   items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+
+const plural = (count, word, words = `${word}s`) => `${count} ${count === 1 ? word : words}`;
 
 // Markdown inline code that holds any text, backticks included.
 const code = (text) => {
@@ -453,29 +562,63 @@ const occurrencesIn = (comments) =>
     }
   });
 
+// Quarantine --------------------------------------------------------------
+
+const QUARANTINE_OCCURRENCES = 3;
+const QUARANTINE_BRANCHES = 2;
+const QUARANTINE_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// A record is quarantined while it is open and carries the quarantine label.
+const isQuarantined = (settings, record) => record.open && record.labels.includes(settings.quarantineLabel);
+
+// The quarantined record of this test, if any.
+const quarantinedRecord = (settings, records, testcase) =>
+  records?.find((record) => record.title === display(testcase) && isQuarantined(settings, record));
+
+// How many of a record's occurrences, oldest first, count toward quarantine
+// at the time `now`, and on how many branches, as { occurrences, branches }.
+// The count starts again at the occurrence that last reopened the record, and
+// a run counts once, even when two of its jobs raced to record it.
+const towardQuarantine = (recorded, now) => {
+  const sinceReopened = recorded.slice(Math.max(0, recorded.findLastIndex(({ reopened }) => reopened === true)));
+  const counting = sinceReopened.filter(({ date }) => now - Date.parse(date) <= QUARANTINE_DAYS * DAY_MS);
+  return {
+    occurrences: new Set(counting.map(({ run }) => run)).size,
+    branches: new Set(counting.map(({ branch }) => branch)).size,
+  };
+};
+
+const qualifies = ({ occurrences, branches }) =>
+  occurrences >= QUARANTINE_OCCURRENCES && branches >= QUARANTINE_BRANCHES;
+
+const countSentence = ({ occurrences, branches }) =>
+  `Quarantine count: ${plural(occurrences, 'occurrence')} on ${plural(branches, 'branch', 'branches')} in ${QUARANTINE_DAYS} days (it takes ${QUARANTINE_OCCURRENCES} on at least ${QUARANTINE_BRANCHES}).`;
+
+// The quarantine cap for a suite of `size` tests: the most tests that may be
+// quarantined at once, and the words that explain that number. A percentage
+// rounds down, so the quarantined share never passes it.
+const capOf = (cap, size) => {
+  const percent = cap.match(/^(\d+)%$/);
+  if (!percent) return { allowed: Number(cap), explained: cap };
+  const allowed = Math.floor((Number(percent[1]) * size) / 100);
+  return { allowed, explained: `${cap} of the ${plural(size, 'test')} in the results file, which is ${allowed}` };
+};
+
+// Recording ---------------------------------------------------------------
+
 // Records each test's flake occurrence on its flaky-test record and returns,
-// per test, the sentence the run summary gives about it.
-const recordOccurrences = async (settings, tests) => {
+// per test, the sentence the run summary gives about it. `quarantine` holds
+// the cap's { allowed, explained }, the count of quarantined records, which
+// grows as this job quarantines more, and the cap warnings, as `capped`.
+const recordOccurrences = async (settings, { tracker, records, problem }, tests, quarantine) => {
   if (tests.length === 0) return [];
-  const missing = [
-    ...['--repo', '--branch', '--job', '--run', '--run-url'].filter((flag) => !settings[key(flag)]),
-    ...(settings.token ? [] : ['a token in VERDICT_TRACKER_TOKEN or GITHUB_TOKEN']),
-  ];
+  const missing = lacking(settings, ['--repo', '--branch', '--job', '--run', '--run-url']);
   if (missing.length > 0) {
     return tests.map(() => `Not recorded: the tracker settings lack ${listOf(missing)}.`);
   }
-  const tracker = githubTracker(settings);
-  // Whatever goes wrong while recording, the verdict stands.
-  const notRecorded = (error) =>
-    error instanceof TrackerError
-      ? `Not recorded: ${error.message}.`
-      : `Not recorded: the script failed while recording (${error.message}).`;
-  let records;
-  try {
-    records = await tracker.listRecords(settings.flakyLabel);
-  } catch (error) {
-    return tests.map(() => notRecorded(error));
-  }
+  if (problem) return tests.map(() => `Not recorded: ${problem}.`);
+  const notRecorded = (error) => `Not recorded: ${trackerProblem(error, 'recording')}.`;
   const occurrence = {
     date: new Date().toISOString().replace(/\.\d+Z$/, 'Z'),
     branch: settings.branch,
@@ -485,19 +628,23 @@ const recordOccurrences = async (settings, tests) => {
   };
   const said = [];
   for (const testcase of tests) {
-    said.push(await recordOne(settings, tracker, records, testcase, occurrence).catch(notRecorded));
+    said.push(await recordOne(settings, tracker, records, testcase, occurrence, quarantine).catch(notRecorded));
   }
   return said;
 };
 
 // Records one test's flake occurrence and returns what the summary says of it.
-const recordOne = async (settings, tracker, records, testcase, occurrence) => {
+// When the occurrence brings the record to quarantine, it applies the
+// quarantine label if the cap allows, and adds to quarantine.capped if not.
+const recordOne = async (settings, tracker, records, testcase, occurrence, quarantine) => {
   const title = display(testcase);
+  const now = Date.parse(occurrence.date);
   let record = records.find((each) => each.title === title);
+  let recorded = [];
   if (record) {
-    const recorded = occurrencesIn(await tracker.listComments(record));
+    recorded = occurrencesIn(await tracker.listComments(record));
     if (recorded.some(({ run }) => run === settings.run)) {
-      return `Already recorded on [#${record.number}](${record.url}) for this run, so it counts once.`;
+      return `Already recorded on [#${record.number}](${record.url}) for this run, so it counts once. ${countSentence(towardQuarantine(recorded, now))}`;
     }
   } else {
     record = await tracker.createRecord({
@@ -507,9 +654,39 @@ const recordOne = async (settings, tracker, records, testcase, occurrence) => {
     });
   }
   const reopened = !record.open;
+  // A closed record isn't quarantined, so a label it kept would quarantine
+  // the reopened record on one occurrence. The label comes off before the
+  // reopen, so a refusal between the two can't leave it quarantined.
+  const unquarantined = reopened && record.labels.includes(settings.quarantineLabel);
+  if (unquarantined) await tracker.removeLabel(record, settings.quarantineLabel);
   if (reopened) await tracker.reopenRecord(record);
-  await tracker.addComment(record, occurrenceComment({ ...occurrence, ...(reopened && { reopened }) }));
-  return `Recorded on [#${record.number}](${record.url})${reopened ? ' after reopening it' : ''}.`;
+  const added = { ...occurrence, ...(reopened && { reopened }) };
+  await tracker.addComment(record, occurrenceComment(added));
+  const count = towardQuarantine([...recorded, added], now);
+  const label = code(settings.quarantineLabel);
+  const said = [
+    `Recorded on [#${record.number}](${record.url})${reopened ? ' after reopening it' : ''}${
+      unquarantined ? ` and took off its ${label} label, left from before it closed` : ''
+    }.`,
+    countSentence(count),
+  ];
+  if (isQuarantined(settings, record)) {
+    said.push('Already quarantined.');
+  } else if (qualifies(count) && quarantine.count < quarantine.allowed) {
+    try {
+      await tracker.addLabel(record, settings.quarantineLabel);
+      quarantine.count += 1;
+      said.push(`Now quarantined: the record carries the ${label} label, so the test's failures no longer fail the build.`);
+    } catch (error) {
+      said.push(`Not quarantined: ${trackerProblem(error, 'quarantining')}.`);
+    }
+  } else if (qualifies(count)) {
+    quarantine.capped.push(
+      `The quarantine cap kept \`${title}\` ([#${record.number}](${record.url})) out of quarantine: ${plural(quarantine.count, 'test is', 'tests are')} already quarantined, and the cap allows ${quarantine.explained}. Its failures still fail the build until a quarantined test is fixed or the cap is raised.`,
+    );
+    said.push('Not quarantined: the quarantine cap is reached, as the warning above says.');
+  }
+  return said.join(' ');
 };
 
 // Main --------------------------------------------------------------------
@@ -520,13 +697,32 @@ if (problem) {
   process.exit(2);
 }
 
-const { buildFailures, occurrences } = judge(settings);
-const recorded = await recordOccurrences(settings, occurrences);
+const { buildFailures, stillFailing, occurrences, suite } = judge(settings);
+const tracked = stillFailing.length > 0 || occurrences.length > 0 ? await readRecords(settings) : {};
+const ignored = [];
+for (const { testcase, failure } of stillFailing) {
+  const record = quarantinedRecord(settings, tracked.records, testcase);
+  if (record) ignored.push(`${failure} Ignored, because its record [#${record.number}](${record.url}) is quarantined.`);
+  else buildFailures.push(failure);
+}
+const unread =
+  stillFailing.length > 0 && tracked.problem
+    ? [`Quarantine not read: ${tracked.problem}, so no test is treated as quarantined.`]
+    : [];
+const quarantine = {
+  ...capOf(settings.quarantineCap, suite),
+  count: tracked.records?.filter((record) => isQuarantined(settings, record)).length ?? 0,
+  capped: [],
+};
+const recorded = await recordOccurrences(settings, tracked, occurrences, quarantine);
 const pass = buildFailures.length === 0;
 const summary = [
   `### Verdict: ${pass ? 'pass' : 'fail'}`,
   '',
-  ...buildFailures.map((line) => `- ${line}`),
+  ...(quarantine.capped.length > 0
+    ? ['> [!WARNING]', ...quarantine.capped.flatMap((line, i) => [...(i > 0 ? ['>'] : []), `> ${line}`]), '']
+    : []),
+  ...[...buildFailures, ...unread, ...ignored].map((line) => `- ${line}`),
   ...occurrences.map(
     (testcase, i) =>
       `- Flake occurrence: \`${display(testcase)}\` failed on attempt 1 and passed on attempt 2. ${recorded[i]}`,
