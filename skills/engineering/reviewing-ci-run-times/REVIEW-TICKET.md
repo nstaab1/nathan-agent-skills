@@ -10,10 +10,10 @@ The body opens with two lines:
 
 ```markdown
 Previous review: <link>. Baseline: <link>.
-Window: <start date> to <end date>, <days covered> days, <n> runs, <n> on the default branch and <n> from PRs.
+Window: <start of days covered> to <end date>, <days covered> days, <n> runs, <n> on the default branch and <n> from PRs.
 ```
 
-The baseline review writes `Previous review: none. This review is the baseline.` A later review copies the Baseline link from the previous review, or links the previous review itself when that one was the baseline. When the 200-run cap cut the window short, the Window line says so.
+The baseline review writes `Previous review: none. This review is the baseline.` A later review copies the Baseline link from the previous review, or links the previous review itself when that one was the baseline. When the days covered are fewer than 30, the Window line says why: the CI is younger than 30 days, or the 200-run cap cut the list.
 
 The sections follow in this order, each under a `##` heading in the ticket.
 
@@ -31,9 +31,13 @@ One row per measure in the Numbers section of [CHECKS.md](CHECKS.md). Copy the B
 
 Rows in rank order. Basis is the estimate's arithmetic and assumptions. Ticket is the child ticket's link, `carried <link>` for an open child ticket from an earlier review, or `needs a decision`. With no suggestions, the section reads `None this week.`
 
+### Nothing found
+
+One line for each check that ran and found nothing, saying what it looked at, such as the slowest install step's median for Caching. Leave the section out when every check found something or was a gap.
+
 ### Where time goes
 
-The ten jobs and steps with the most runner minutes per week, each with its duration and runs per week, and each workflow's critical path in its median run. Then the ten slowest tests, with each one's median time and share of the suite, when per-test times exist.
+Two lists from the Slow jobs and steps check: the ten jobs with the most runner minutes per week, then the ten steps with the most, each named with its job. Give each its duration and runs per week, and mark any whose trend is growing or shrinking. Then each workflow's critical path in its median run, and the ten slowest tests, with each one's median time and share of the suite, when per-test times exist.
 
 ### Since the previous review
 
@@ -45,7 +49,7 @@ Every suggestion people declined, linked to where they declined it. Each review 
 
 ### Gaps
 
-Each check that couldn't run or had too few runs to judge, with what it lacked, the error where a command failed, and the CI doc field or command to fix. Then each command marked _untried_ that worked, so the developer can take the mark off. Leave the section out when it would be empty.
+Each check that couldn't run, with what it lacked, the error where a command failed, and the CI doc field or command to fix. Each problem seen in too few runs to judge, with the runs that showed it. Then each command marked _untried_ that worked, so the developer can take the mark off. Leave the section out when it would be empty.
 
 ### Test-audit scope
 

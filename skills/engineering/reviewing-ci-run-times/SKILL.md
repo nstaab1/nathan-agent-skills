@@ -7,14 +7,14 @@ A **run-time review** reads a repo's CI run history and files one ticket of sugg
 
 The review reads the CI run history, the CI config and the repo's git history. Its only writes are tickets: the review ticket, a child ticket for each clear fix, and the comment that closes the previous review.
 
-Everything provider-specific comes from the repo's CI doc, `docs/agents/ci.md`: the commands, where the CI config lives, the test job and the labels. Tickets follow `docs/agents/issue-tracker.md`. A triage role such as `ready-for-agent` becomes a label through `docs/agents/triage-labels.md`, or keeps its own name when that file is absent. Create a label the tracker lacks before applying it. When the CI doc or the issue-tracker doc is missing, tell the developer to run `/setup-agent-skills`, and stop.
+Everything provider-specific comes from the repo's CI doc, `docs/agents/ci.md`: the commands, where the CI config lives, the test job and the labels. Tickets follow `docs/agents/issue-tracker.md`. A triage role such as `ready-for-agent` becomes a label through `docs/agents/triage-labels.md`, or keeps its own name when that file is absent. On a tracker with labels, create a label it lacks before applying it. When the CI doc or the issue-tracker doc is missing, tell the developer to run `/setup-agent-skills`, and stop.
 
 ## 1. Read the CI doc
 
 Find each field by its heading. A field that reads `None.` isn't set up.
 
 - `## CI provider`: the provider and where its config lives.
-- `## Run history`: the commands **List runs**, **Jobs and steps of a run**, **Failed log** and **Results file of a run**.
+- `## Run history`: the commands **List runs**, **Jobs and steps of a run**, **Failed log**, **Full log of a run** and **Results file of a run**.
 - `## Test command`: the test **Job** and its **Results file**.
 - `## Verdict script`: **Location**, which says whether `fixing-flaky-tests` has wired the verdict script.
 - `## Labels`: the **Flaky label** that every flaky-test record carries.
@@ -38,10 +38,10 @@ Done when this review is known to be the baseline, or the previous review's numb
 
 ## 3. Fetch the history
 
-Save every command's output in a folder outside the repo, such as a temporary directory. Compute every figure in later steps with a script over those files, so the numbers come out the same way every week.
+Save every command's output in a folder outside the repo, such as a temporary directory, and save each log the checks read there too. Compute every figure in later steps with a script over those files, so the numbers come out the same way every week.
 
 1. The window starts 30 days before today. Run **List runs** for runs created since then, once for the default branch and once for PRs, each limited to 200. When the command can't narrow by branch or trigger, filter its output instead.
-2. Merge the two lists, drop runs still in progress, sort newest first and keep the newest 200. **Days covered** is the time in days from the oldest kept run's creation to now. It is 30 at most, and fewer when the cap cut the list.
+2. Merge the two lists, drop runs still in progress, sort newest first and keep the newest 200. **Days covered** count from the latest of three times to now: the window's start, the first commit of the CI config the CI doc names, and, when the cap cut the list, the oldest kept run's creation. A repo whose CI is younger than 30 days, or busy enough to hit the cap, covers fewer days, and its rates per week stay true.
 3. Run **Jobs and steps of a run** for every kept run, covering every attempt.
 4. Run **Results file of a run** for the ten most recent successful runs of the test job, default-branch runs first.
 5. Read the CI config the CI doc names.
