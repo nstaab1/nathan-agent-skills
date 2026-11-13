@@ -51,7 +51,7 @@ The issue-tracker ticket for one flaky test, holding its identity and every flak
 _Avoid_: Flaky list entry
 
 **Quarantine**:
-The state of a flaky test that still runs but cannot fail the build. A test enters it at three flake occurrences within 30 days that span at least two branches, and leaves it when fixed or after 30 days, whichever comes first.
+The state of a flaky test that still runs but cannot fail the build. A test enters it at three flake occurrences within 30 days that span at least two branches, while the quarantine cap set in the repo's CI doc is not reached, and leaves it when fixed or after 30 days, whichever comes first.
 _Avoid_: Skip, disable, mute
 
 **Verdict script**:
