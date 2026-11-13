@@ -1,0 +1,8 @@
+retries-off-attempt-1: 1  (pytest tests/test_flaky.py)
+retries-off-attempt-2-lf: 0  (pytest --lf tests/test_flaky.py)
+retries-on: 0  (pytest tests/test_flaky.py --reruns 2)
+retries-on-fail-on-flaky: 7  (pytest tests/test_flaky.py --reruns 2 --fail-on-flaky)
+retries-on-always-fails: 1  (pytest tests/test_always_fails.py --reruns 2)
+shapes: 1  (pytest tests/test_shapes.py tests/sub)
+shapes-xunit1: 1  (pytest tests/test_shapes.py tests/sub -o junit_family=xunit1)
+collection-error: 2  (pytest broken)

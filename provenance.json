@@ -62,7 +62,7 @@
       "upstreamSha": "0b6cee10f260a2e048279cf737bfd3e37b1fce0b",
       "vendorCommit": "1fe572dde69a06e4fb583126e829d2b84408b667",
       "linked": true,
-      "status": "modified"
+      "status": "verbatim"
     },
     "engineering/codebase-design": {
       "source": "mattpocock",
@@ -127,6 +127,9 @@
       "vendorCommit": "1fe572dde69a06e4fb583126e829d2b84408b667",
       "linked": true,
       "status": "verbatim"
+    },
+    "engineering/ns-code-review": {
+      "source": null
     },
     "engineering/ns-implement-1-0-0": {
       "source": null

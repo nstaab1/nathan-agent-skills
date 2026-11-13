@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="2" failures="0" errors="0" time="0.003651875">
+    <testsuite name="tests/flaky.spec.js" timestamp="2026-11-13T22:32:40.864Z" hostname="Mac" tests="2" failures="0" errors="0" skipped="0" time="0.003651875">
+        <testcase classname="tests/flaky.spec.js" name="passes" time="0.000681416">
+        </testcase>
+        <testcase classname="tests/flaky.spec.js" name="fails once" time="0.002489333">
+        </testcase>
+    </testsuite>
+</testsuites>

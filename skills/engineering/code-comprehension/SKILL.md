@@ -73,7 +73,7 @@ Questions draw only on whys labelled *from the session* or verified against the 
 - One open-ended **why** or **what breaks if** question that needs reasoning past the snippet. A question the snippet answers by itself tests reading.
 - One multiple choice when a mechanical fact matters (which layer, which file, which caller). Every option has the same word count, and every wrong option is something a reasonable reader would believe.
 
-A suspected defect noticed while preparing gets one line where it arises, marked **Not reviewed**, with a pointer to `/code-review`, then the section continues.
+A suspected defect noticed while preparing gets one line where it arises, marked **Not reviewed**, with a pointer to `/ns-code-review`, then the section continues.
 
 ### Grading
 
