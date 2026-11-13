@@ -1,0 +1,8 @@
+# What capture.sh and the installs leave behind.
+.venv/
+uv.lock
+__pycache__/
+.pytest_cache/
+package-lock.json
+.vitest/
+.flake-state/
