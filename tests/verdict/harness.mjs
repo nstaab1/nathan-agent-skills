@@ -6,8 +6,10 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { startFakeGitHub } from './fake-github.mjs';
+import { startFakeGitLab } from './fake-gitlab.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const VERDICT = join(here, '../../skills/engineering/fixing-flaky-tests/scripts/verdict.mjs');
@@ -52,10 +54,9 @@ const spawnAndWait = (file, args, options) =>
 
 // The environment the script runs in: this process's, with nothing a real CI
 // set that the script reads, plus the variables a test gives.
+const CI_VARIABLES = /^(GITHUB_|GITLAB_|CI_|VERDICT_)/;
 const scriptEnv = (extra = {}) => {
-  const env = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => !key.startsWith('GITHUB_') && !key.startsWith('VERDICT_')),
-  );
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !CI_VARIABLES.test(key)));
   return { ...env, ...extra };
 };
 
@@ -115,6 +116,7 @@ export const lineAbout = (summary, text) =>
 // The settings that point the script at a fake tracker, as one CI job.
 export const recordingTo = (tracker, { branch = 'feature/cart', job = 'test', run = '4242' } = {}) => ({
   flags: [
+    '--tracker', tracker.kind,
     '--tracker-url', tracker.url,
     '--repo', tracker.repo,
     '--branch', branch,
@@ -125,15 +127,33 @@ export const recordingTo = (tracker, { branch = 'feature/cart', job = 'test', ru
   env: { VERDICT_TRACKER_TOKEN: tracker.token },
 });
 
-// Runs body against a fake GitHub tracker started with these options, then
-// stops the tracker.
-export const withTracker = async (options, body) => {
-  const tracker = await startFakeGitHub(options);
-  try {
-    await body(tracker);
-  } finally {
+// A kind of fake tracker. `withTracker` runs body against a fake started with
+// these options, then stops it. `unreachable` gives the settings of a tracker
+// of this kind at a localhost address nothing answers.
+const fakeTracker = (name, start) => ({
+  name,
+  withTracker: async (options, body) => {
+    const tracker = await start(options);
+    try {
+      await body(tracker);
+    } finally {
+      await tracker.close();
+    }
+  },
+  unreachable: async () => {
+    const tracker = await start();
     await tracker.close();
-  }
+    return { kind: tracker.kind, url: tracker.url, repo: tracker.repo, token: tracker.token };
+  },
+});
+
+export const github = fakeTracker('GitHub', startFakeGitHub);
+export const gitlab = fakeTracker('GitLab', startFakeGitLab);
+
+// Registers one test per kind of tracker, each named for its tracker, so
+// every adapter answers to the same tests. body is given the fake tracker.
+export const trackerTest = (name, body) => {
+  for (const fake of [github, gitlab]) test(`${name} (${fake.name})`, () => body(fake));
 };
 
 // The flake occurrences on a record, read from each comment's occurrence

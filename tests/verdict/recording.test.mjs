@@ -1,14 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runVerdict, junit, passed, failed, lineAbout, recordingTo, withTracker, occurrencesOn, OCCURRENCE } from './harness.mjs';
-import { unreachableUrl } from './fake-github.mjs';
+import { runVerdict, runVerdictWith, junit, passed, failed, lineAbout, recordingTo, trackerTest, github, gitlab, occurrencesOn, OCCURRENCE } from './harness.mjs';
 
 // The failures this guards: a flake occurrence that never reaches its
 // flaky-test record, a record created twice for one test, a run counted twice
 // because several of its jobs saw the same flake, and a tracker problem that
 // changes the verdict. Each test runs the real verdict script against a fake
-// GitHub tracker and reads the exit code, the run summary and what the
-// tracker received.
+// tracker, GitHub's and GitLab's in turn unless it names one, and reads the
+// exit code, the run summary and what the tracker received.
 
 // Test command runs in which each named test fails on attempt 1 and passes on
 // attempt 2, beside a test that always passes.
@@ -19,7 +18,7 @@ const flaking = (...tests) => ({
   ],
 });
 
-test('a first flake occurrence creates a flaky-test record titled with the test identity, labelled flaky and ready-for-agent', () =>
+trackerTest('a first flake occurrence creates a flaky-test record titled with the test identity, labelled flaky and ready-for-agent', ({ withTracker }) =>
   withTracker({}, async (tracker) => {
     const { code, summary, output } = await runVerdict({
       ...flaking(['tests.test_cart', 'test_checkout_total']),
@@ -34,7 +33,7 @@ test('a first flake occurrence creates a flaky-test record titled with the test 
     assert.ok(lineAbout(summary, 'tests.test_cart test_checkout_total').includes(record.url), summary);
   }));
 
-test('with no tracker token the build still passes, nothing is sent and the summary says the occurrence was not recorded', () =>
+trackerTest('with no tracker token the build still passes, nothing is sent and the summary says the occurrence was not recorded', ({ withTracker }) =>
   withTracker({}, async (tracker) => {
     const { flags } = recordingTo(tracker);
     const { code, summary, output } = await runVerdict({
@@ -49,7 +48,7 @@ test('with no tracker token the build still passes, nothing is sent and the summ
     assert.match(line, /VERDICT_TRACKER_TOKEN/);
   }));
 
-test('each flake occurrence is a comment on the record giving its date, branch, job and run link', () =>
+trackerTest('each flake occurrence is a comment on the record giving its date, branch, job and run link', ({ withTracker }) =>
   withTracker({}, async (tracker) => {
     const before = new Date();
     const { code, output } = await runVerdict({
@@ -74,7 +73,7 @@ test('each flake occurrence is a comment on the record giving its date, branch, 
     }
   }));
 
-test('a later flake occurrence is a new comment on the record whose title is exactly the test identity', () =>
+trackerTest('a later flake occurrence is a new comment on the record whose title is exactly the test identity', ({ withTracker }) =>
   withTracker(
     {
       records: [
@@ -102,7 +101,7 @@ test('a later flake occurrence is a new comment on the record whose title is exa
     },
   ));
 
-test('a flake occurrence on a closed record reopens it, and that occurrence says it reopened the record', () =>
+trackerTest('a flake occurrence on a closed record reopens it, and that occurrence says it reopened the record', ({ withTracker }) =>
   withTracker({ records: [{ title: 'tests.test_cart test_checkout_total', state: 'closed' }] }, async (tracker) => {
     const { code, summary, output } = await runVerdict({
       ...flaking(['tests.test_cart', 'test_checkout_total']),
@@ -117,7 +116,7 @@ test('a flake occurrence on a closed record reopens it, and that occurrence says
     assert.match(lineAbout(summary, 'tests.test_cart test_checkout_total'), /reopen/i);
   }));
 
-test('several jobs of one run that see the same flake leave one occurrence, and a later run adds its own', () =>
+trackerTest('several jobs of one run that see the same flake leave one occurrence, and a later run adds its own', ({ withTracker }) =>
   withTracker({}, async (tracker) => {
     const flake = flaking(['tests.test_cart', 'test_checkout_total']);
     const linux = await runVerdict({ ...flake, ...recordingTo(tracker, { job: 'test (ubuntu-latest)', run: '4242' }) });
@@ -139,8 +138,8 @@ test('several jobs of one run that see the same flake leave one occurrence, and 
     );
   }));
 
-test('with the tracker unreachable the build still passes and the summary says the occurrence was not recorded', async () => {
-  const tracker = { url: await unreachableUrl(), repo: 'acme/shop', token: 'fake-token' };
+trackerTest('with the tracker unreachable the build still passes and the summary says the occurrence was not recorded', async ({ unreachable }) => {
+  const tracker = await unreachable();
   const { code, summary, output } = await runVerdict({
     ...flaking(['tests.test_cart', 'test_checkout_total']),
     ...recordingTo(tracker),
@@ -152,7 +151,7 @@ test('with the tracker unreachable the build still passes and the summary says t
   assert.match(line, /could not be reached/i);
 });
 
-test('with a read-only token the build still passes and the summary says the tracker refused to record the occurrence', () =>
+trackerTest('with a read-only token the build still passes and the summary says the tracker refused to record the occurrence', ({ withTracker }) =>
   withTracker({ readOnly: true, records: [{ title: 'tests.test_tax test_vat_rounding' }] }, async (tracker) => {
     const { code, summary, output } = await runVerdict({
       ...flaking(['tests.test_cart', 'test_checkout_total'], ['tests.test_tax', 'test_vat_rounding']),
@@ -170,7 +169,7 @@ test('with a read-only token the build still passes and the summary says the tra
   }));
 
 test('on GitHub Actions the tracker settings come from the job environment', () =>
-  withTracker({}, async (tracker) => {
+  github.withTracker({}, async (tracker) => {
     const github = {
       GITHUB_API_URL: tracker.url,
       GITHUB_REPOSITORY: tracker.repo,
@@ -198,7 +197,70 @@ test('on GitHub Actions the tracker settings come from the job environment', () 
     );
   }));
 
-test('a record listed after the first page is still found, so no second record is created', () => {
+test('on GitLab CI the tracker and its settings come from the job environment', () =>
+  gitlab.withTracker({ repo: 'acme/web/shop' }, async (tracker) => {
+    const ci = {
+      GITLAB_CI: 'true',
+      CI_API_V4_URL: tracker.url,
+      CI_PROJECT_PATH: 'acme/web/shop',
+      CI_JOB_NAME: 'test: [ubuntu, 22]',
+      CI_JOB_TOKEN: 'a-job-token-the-tracker-refuses',
+      VERDICT_TRACKER_TOKEN: tracker.token,
+    };
+    const pipelines = [
+      {
+        CI_PIPELINE_ID: '4242',
+        CI_PIPELINE_URL: 'https://gitlab.example/acme/web/shop/-/pipelines/4242',
+        CI_MERGE_REQUEST_SOURCE_BRANCH_NAME: 'feature/cart',
+        CI_COMMIT_REF_NAME: 'refs/merge-requests/17/head',
+      },
+      {
+        CI_PIPELINE_ID: '4243',
+        CI_PIPELINE_URL: 'https://gitlab.example/acme/web/shop/-/pipelines/4243',
+        CI_COMMIT_REF_NAME: 'main',
+      },
+    ];
+    for (const pipeline of pipelines) {
+      const { code, output } = await runVerdict({
+        ...flaking(['tests.test_cart', 'test_checkout_total']),
+        env: { ...ci, ...pipeline },
+      });
+      assert.equal(code, 0, output);
+    }
+    assert.equal(tracker.records.length, 1);
+    assert.deepEqual(
+      occurrencesOn(tracker.records[0]).map(({ branch, job, run, run_url }) => ({ branch, job, run, run_url })),
+      [
+        { branch: 'feature/cart', job: 'test: [ubuntu, 22]', run: '4242', run_url: 'https://gitlab.example/acme/web/shop/-/pipelines/4242' },
+        { branch: 'main', job: 'test: [ubuntu, 22]', run: '4243', run_url: 'https://gitlab.example/acme/web/shop/-/pipelines/4243' },
+      ],
+    );
+  }));
+
+test('VERDICT_TRACKER chooses the tracker, and --tracker overrides it', async () => {
+  const flake = flaking(['tests.test_cart', 'test_checkout_total']);
+  await gitlab.withTracker({}, async (tracker) => {
+    const { flags, env } = recordingTo(tracker);
+    const withoutChoice = flags.filter((_, i) => flags[i] !== '--tracker' && flags[i - 1] !== '--tracker');
+    const { code, output } = await runVerdict({ ...flake, flags: withoutChoice, env: { ...env, VERDICT_TRACKER: 'gitlab' } });
+    assert.equal(code, 0, output);
+    assert.equal(tracker.records.length, 1, output);
+  });
+  await github.withTracker({}, async (tracker) => {
+    const { flags, env } = recordingTo(tracker);
+    const { code, output } = await runVerdict({ ...flake, flags, env: { ...env, VERDICT_TRACKER: 'gitlab', GITLAB_CI: 'true' } });
+    assert.equal(code, 0, output);
+    assert.equal(tracker.records.length, 1, output);
+  });
+});
+
+test('the script refuses a tracker other than github or gitlab', async () => {
+  const { code, output } = await runVerdictWith(['--tracker', 'jira', '--results', 'results.xml', '--', 'pytest']);
+  assert.equal(code, 2);
+  assert.match(output, /--tracker takes github or gitlab/);
+});
+
+trackerTest('a record listed after the first page is still found, so no second record is created', ({ withTracker }) => {
   const others = Array.from({ length: 150 }, (_, i) => ({ title: `tests.test_other test_${i}`, state: 'closed' }));
   return withTracker({ records: [{ title: 'tests.test_cart test_checkout_total' }, ...others] }, async (tracker) => {
     const { code, output } = await runVerdict({
@@ -211,7 +273,7 @@ test('a record listed after the first page is still found, so no second record i
   });
 });
 
-test('an occurrence of this run listed after the first page of comments still counts, so no second one is added', () => {
+trackerTest('an occurrence of this run listed after the first page of comments still counts, so no second one is added', ({ withTracker }) => {
   const earlier = Array.from({ length: 120 }, (_, i) => `A note ${i}.`);
   const thisRun = [
     'Flake occurrence: failed on attempt 1 and passed on attempt 2.',
@@ -232,7 +294,7 @@ test('an occurrence of this run listed after the first page of comments still co
   );
 });
 
-test('each case of a parameterised test has its own record', () =>
+trackerTest('each case of a parameterised test has its own record', ({ withTracker }) =>
   withTracker({}, async (tracker) => {
     const { code, summary, output } = await runVerdict({
       ...flaking(['tests.test_tax', 'test_rate[uk]'], ['tests.test_tax', 'test_rate[de]']),
@@ -247,7 +309,7 @@ test('each case of a parameterised test has its own record', () =>
     assert.notEqual(lineAbout(summary, 'test_rate[uk]'), lineAbout(summary, 'test_rate[de]'));
   }));
 
-test('a branch or job name holding markup reads back exactly from the occurrence, which stays hidden in one HTML comment', () =>
+trackerTest('a branch or job name holding markup reads back exactly from the occurrence, which stays hidden in one HTML comment', ({ withTracker }) =>
   withTracker({}, async (tracker) => {
     const branch = 'fix/a-->b<c>&d';
     const job = 'test `node` --> <24>';
@@ -263,7 +325,7 @@ test('a branch or job name holding markup reads back exactly from the occurrence
     assert.equal(line.indexOf('-->'), line.length - 3, 'the marker holds no earlier -->');
   }));
 
-test('a run with no flake occurrence sends the tracker nothing', () =>
+trackerTest('a run with no flake occurrence sends the tracker nothing', ({ withTracker }) =>
   withTracker({}, async (tracker) => {
     const { code, output } = await runVerdict({
       testRuns: [{ exit: 0, xml: junit(passed('tests.test_cart', 'test_add_item')) }],

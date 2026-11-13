@@ -4,8 +4,25 @@
 // lists through the Link header, refuses a wrong token with 401 and, when
 // readOnly, refuses every write with 403, as GitHub does for a fork PR's token.
 // `refuse` picks other requests to refuse with 403: it is given each request's
-// { method, path } and returns true to refuse it.
+// { method, path, action } and returns true to refuse it.
+//
+// Its `records` view and each logged request's `action`, which says what the
+// request asks the tracker to do, read the same as fake-gitlab.mjs's, so one
+// test can check either tracker.
 import { createServer } from 'node:http';
+
+// What a request asks the tracker to do, in the words fake-gitlab.mjs uses.
+const actionOf = (method, number, sub, rest, body) => {
+  if (sub === 'comments' && rest.length === 0) return { GET: 'list comments', POST: 'add comment' }[method];
+  if (sub === 'labels') return { POST: 'add label', DELETE: 'remove label' }[method];
+  if (sub) return undefined;
+  if (!number) return { GET: 'list records', POST: 'create record' }[method];
+  if (method !== 'PATCH' || !body) return undefined;
+  const actions = [];
+  if (body.state) actions.push(body.state === 'open' ? 'reopen record' : 'close record');
+  if (body.labels) actions.push('set labels');
+  return actions.join(' and ') || undefined;
+};
 
 export const startFakeGitHub = async ({
   repo = 'acme/shop',
@@ -60,17 +77,20 @@ export const startFakeGitHub = async ({
     let text = '';
     for await (const chunk of req) text += chunk;
     const body = text ? JSON.parse(text) : undefined;
-    requests.push({ method: req.method, path: url.pathname, query: Object.fromEntries(url.searchParams), body });
+    const prefix = `/repos/${repo}/issues`;
+    const [number, sub, ...rest] = url.pathname.startsWith(prefix)
+      ? url.pathname.slice(prefix.length).split('/').filter(Boolean)
+      : [];
+    const action = url.pathname.startsWith(prefix) ? actionOf(req.method, number, sub, rest, body) : undefined;
+    requests.push({ method: req.method, path: url.pathname, query: Object.fromEntries(url.searchParams), body, action });
 
     const auth = req.headers.authorization;
     if (auth !== `Bearer ${token}` && auth !== `token ${token}`) return send(res, 401, { message: 'Bad credentials' });
-    if ((readOnly && req.method !== 'GET') || refuse({ method: req.method, path: url.pathname })) {
+    if ((readOnly && req.method !== 'GET') || refuse({ method: req.method, path: url.pathname, action })) {
       return send(res, 403, { message: 'Resource not accessible by integration' });
     }
 
-    const prefix = `/repos/${repo}/issues`;
     if (!url.pathname.startsWith(prefix)) return send(res, 404, { message: 'Not Found' });
-    const [number, sub, ...rest] = url.pathname.slice(prefix.length).split('/').filter(Boolean);
     const issue = number && issues.find((each) => each.number === Number(number));
     if (number && !issue) return send(res, 404, { message: 'Not Found' });
 
@@ -116,6 +136,7 @@ export const startFakeGitHub = async ({
   base = `http://127.0.0.1:${server.address().port}`;
 
   return {
+    kind: 'github',
     url: base,
     repo,
     token,
@@ -138,13 +159,4 @@ export const startFakeGitHub = async ({
         server.close(resolve);
       }),
   };
-};
-
-// The address of a tracker that is not there: a localhost port nothing listens on.
-export const unreachableUrl = async () => {
-  const server = createServer();
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const url = `http://127.0.0.1:${server.address().port}`;
-  await new Promise((resolve) => server.close(resolve));
-  return url;
 };
