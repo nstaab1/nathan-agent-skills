@@ -42,7 +42,7 @@ Every list pages through all results.
 | Greptile | `greptile-apps[bot]` | `greptile-apps` | Inline comments, an empty review, and a summary as a conversation comment that repeats the inline findings and can add points of its own, so read it in full |
 | Cursor | `cursor[bot]` | `cursor` | One review body with every finding, no inline comments |
 
-Strip HTML from bot bodies before reading: `| sed -e 's/<[^>]*>//g'`.
+Read bot bodies as returned. They carry HTML badges and comments, but don't strip tags with a filter: it also deletes code in angle brackets, such as `<pr>` or `Array<string>`. The list commands above print JSON, where `<` and `>` arrive as `\u003c` and `\u003e`.
 
 ## 3. Reply and resolve
 
