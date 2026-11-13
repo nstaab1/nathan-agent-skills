@@ -49,13 +49,24 @@ const spawnAndWait = (file, args, options) =>
     child.on('close', (code) => resolve({ code, output }));
   });
 
+// The environment the script runs in: this process's, with nothing a real CI
+// set that the script reads, plus the variables a test gives.
+const scriptEnv = (extra = {}) => {
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => !key.startsWith('GITHUB_') && !key.startsWith('VERDICT_')),
+  );
+  return { ...env, ...extra };
+};
+
 // testRuns: what the test command does on each run, in order, as
 // { exit, xml }. Leave out xml for a run that writes no results file.
 // rerunRuns: when given, a rerun-failures command is configured and these are
 // its runs.
 // stale: a results file left over from an earlier run, there before attempt 1.
 // summaryIn: 'flag' passes --summary; 'github' sets GITHUB_STEP_SUMMARY.
-export const runVerdict = async ({ testRuns, rerunRuns, stale, summaryIn = 'flag' }) => {
+// flags: more arguments for the script, before the `--`.
+// env: more environment variables for the script.
+export const runVerdict = async ({ testRuns, rerunRuns, stale, summaryIn = 'flag', flags = [], env: extraEnv }) => {
   const dir = mkdtempSync(join(tmpdir(), 'verdict-'));
   try {
     const results = join(dir, 'results.xml');
@@ -68,9 +79,8 @@ export const runVerdict = async ({ testRuns, rerunRuns, stale, summaryIn = 'flag
       return [process.execPath, FAKE, plan];
     };
 
-    const env = { ...process.env };
-    delete env.GITHUB_STEP_SUMMARY;
-    const args = [VERDICT, '--results', results];
+    const env = scriptEnv(extraEnv);
+    const args = [VERDICT, '--results', results, ...flags];
     if (summaryIn === 'github') env.GITHUB_STEP_SUMMARY = summary;
     else args.push('--summary', summary);
     if (rerunRuns) {
@@ -91,9 +101,7 @@ export const runVerdict = async ({ testRuns, rerunRuns, stale, summaryIn = 'flag
 export const runVerdictWith = async (args) => {
   const dir = mkdtempSync(join(tmpdir(), 'verdict-'));
   try {
-    const env = { ...process.env };
-    delete env.GITHUB_STEP_SUMMARY;
-    return await spawnAndWait(process.execPath, [VERDICT, ...args], { cwd: dir, env });
+    return await spawnAndWait(process.execPath, [VERDICT, ...args], { cwd: dir, env: scriptEnv() });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
