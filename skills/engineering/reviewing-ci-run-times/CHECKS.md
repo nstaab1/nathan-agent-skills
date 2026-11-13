@@ -8,15 +8,18 @@ Runs, jobs and steps are as the CI doc's commands report them. A **workflow** is
 
 - **Test job** and **test step**: the job `## Test command` names, and its step that runs the test command.
 - **Per week**: a count or total in the window × 7 ÷ days covered.
-- **Run time**: the wall-clock time of a run's first attempt, from the run's creation to its last job's completion. It includes queue time, since a developer waits through both. Without jobs and steps, take the run's own start and end times from runs with one attempt.
+- **Run time**: the wall-clock time of a run's first attempt, from the run's creation to its last job's completion. It includes every wait before the work starts, since a developer waits through those too. Without jobs and steps, take the run's own start and end times from runs with one attempt.
 - **Duration**: the median time from start to completion of a job or step.
-- **Medians**, of run times and durations alike, take successful runs only, so a failure that stopped a run early doesn't shorten them. Counts of runs take every run.
+- **Medians** take only work that finished successfully, so a failure that stopped early doesn't shorten them. A run time counts when the run's first attempt succeeded. A job's or step's duration counts from every attempt in which that job or step succeeded. A run that passed only on a rerun still counts in every count of runs, and its later attempts count as rerun minutes.
+- **Trend**: when the median over the newest five successful runs differs from the window's median by more than a quarter, the window's median misstates the current cost. Estimates then use the newest five runs' median and say so in the basis, and Where time goes marks the job or step as growing or shrinking.
 - **Runner minutes**: the sum of every job's time from start to completion, over every attempt.
 - **Critical path**: in a workflow's median run, the chain of jobs that ends with the last job to finish, where each job waits on the one before it in the CI config. A cut to a job on the critical path shortens the run by the cut, up to the time by which that chain outlasts the next-longest chain. A cut to a job off it shortens no run.
 - **Minutes saved per week**: the wall-clock minutes a change cuts from one affected run, × the affected runs per week. It ranks the suggestions, because it is the time people wait.
 - **Runner minutes saved per week**: the runner minutes a change cuts from one affected run, × the affected runs per week. It breaks ties, and it is negative when a change adds runner time.
 
-A suggestion rests on at least five runs. With fewer, report it under Gaps as too few runs to judge.
+A suggestion needs at least five runs that show the problem it fixes, such as five runs of the slow step, five reruns with the cause it removes, or five runs a path filter would skip. With fewer, it stays out of the ranking. List what was seen under Gaps as too few runs to judge, so a later review can pick it up once more runs show it.
+
+When two checks reach the same change, make it one suggestion. Its estimate adds the minutes each check counted, counting no run twice.
 
 Write each estimate's basis as its arithmetic and every assumption in it, such as `2.4 min × 38 runs/week, npm ci in test, cached install assumed at a quarter of its duration`. Use a measured figure wherever the saved files hold one, and the assumptions the checks give only where they don't, so estimates stay comparable from week to week.
 
@@ -28,14 +31,17 @@ The review ticket's Numbers table records these, so later reviews can compare:
 - Runner minutes per week, across every workflow.
 - Rerun rate, as the Rerun rate check defines it.
 - Median queue time, over every job in the window.
+- 90th-percentile run wait, over every run in the window.
 
 ## Slow jobs and steps
 
-Needs **Jobs and steps of a run**.
+Needs **Jobs and steps of a run**, and **Full log of a run** to see inside a step.
 
-List the ten jobs and steps with the most runner minutes per week, each with its duration and runs per week, and find each workflow's critical path. These fill Where time goes in the review ticket.
+List the ten jobs with the most runner minutes per week, then, as a separate list, the ten steps with the most, each step named with its job. Keep the lists apart, since a job's minutes already hold its steps'. Give each its duration and runs per week, and find each workflow's critical path. These fill Where time goes in the review ticket.
 
-Then look at the top of the list for causes the other checks don't cover, such as the same build done in several jobs, a build no later step uses, or a step that waits a fixed time. Each cause with a change is a suggestion. It saves the step's duration minus what the step would take after the change, per run of its job.
+Then look at the top steps for causes the other checks don't cover, such as the same build done in several jobs, a build no later step uses, or a step that waits a fixed time. Each cause with a change is a suggestion. It saves the step's duration minus what the step would take after the change, per run of its job. To see what a step spends its time on, read its log with **Full log of a run**.
+
+A step with runs that took over twice its median has an intermittent cause, such as a slow or failing network fetch. Read those runs' logs for it. Removing the cause saves the minutes above the median those runs took, per week.
 
 ## Caching
 
@@ -53,7 +59,7 @@ Three findings:
 
 - A job that waits on another job and uses nothing it makes: no artifact, no output and no cache it writes. Running the two side by side saves the shorter job's duration per run.
 - Independent steps in one job that run one after another, such as lint and then the tests. Moving the shorter one into its own job saves its duration per run. Runner minutes rise by the setup steps the new job repeats.
-- A test step running on one worker, on a runner with more cores, with a test framework that can run tests in parallel workers. It saves the step's duration × (1 − 1 ÷ cores), assuming the tests split evenly across workers. Name the cores in the basis.
+- A test step running on one worker, on a runner with more cores, with a test framework that can run tests in parallel workers. It saves the step's duration × (1 − 1 ÷ cores), assuming the tests split evenly across workers. Take the cores from the provider's documentation for the runner type the config names, and name them in the basis.
 
 ## Sharding
 
@@ -65,13 +71,13 @@ A finding is a test job on the critical path whose test step outlasts the next-l
 
 Needs the CI config and the repo's git history.
 
-A finding is a workflow or job that runs on changes that can't affect it, such as the full test suite running on a change to docs alone. Read each workflow's triggers and each job's conditions in the config. Then measure, from the default branch's history over the window, the share of commits whose changed files the job can't depend on:
+A finding is a workflow or job that runs on changes that can't affect it, such as the full test suite running on a change to docs alone. Read each workflow's triggers and each job's conditions in the config. Then measure the share of changes to the default branch, over the days covered, whose changed files the job can't depend on:
 
 ```bash
-git log --since=<window start> --name-only --format=%h <default branch>
+git log --first-parent --diff-merges=first-parent --name-only --format=%h --since=<start of days covered> <remote>/<default branch>
 ```
 
-Assume PRs have the same share. The filter saves that share × the job's runs per week × its duration, or × the run time when the whole workflow would be skipped. On some providers a required check that a filter skips blocks the merge, so the child ticket says to check how the provider treats a skipped required check.
+Each entry is one change that landed on the default branch. A merge lists every file its PR changed, compared with the branch it merged into, so a merge never reads as a change with no files. Reading the remote's branch leaves out local commits that never ran CI. Assume PRs have the same share. The filter saves that share × the job's runs per week × its duration, or × the run time when the whole workflow would be skipped. On some providers a required check that a filter skips blocks the merge, so the child ticket says to check how the provider treats a skipped required check.
 
 ## Slow tests
 
@@ -99,7 +105,13 @@ Scale the sample's shares up to every rerun in the window.
 
 Needs **Jobs and steps of a run**.
 
-A job's queue time is the wait from when it could start to when it started. It could start at its creation, or when the last job it waits on completed, whichever is later. Take the median and 90th percentile per job and per runner type. A finding is a median over one minute for a job on the critical path. The usual causes:
+Two waits add to run time before any work starts:
 
-- Too few self-hosted runners, or a concurrency limit. Adding capacity saves the median queue time on the critical path per run. It costs money, so it needs a decision.
+- A **job's queue time** is the wait from when the job could start to when it started. It could start at its creation, or when the last job it waits on completed, whichever is later.
+- A **run's wait** is the time from the run's creation to its first job's creation. A run held back as a whole, such as one waiting for an earlier run in the same concurrency group, waits here before any job exists, so no job's queue time shows it.
+
+Take the median and 90th percentile of queue time per job and per runner type, and of run waits per workflow. A finding is a wait over one minute, in at least five runs, either for a run as a whole or for a job on the critical path. Removing the cause saves at most the minutes those waits add per week. The usual causes:
+
+- Too few self-hosted runners, or a limit on how many jobs run at once. Adding capacity costs money, so it needs a decision.
+- A concurrency group that holds each run until the one before it finishes. In a workflow that deploys, the hold is usually deliberate, so it needs a decision. Elsewhere, cancelling the older run in place of waiting for it is a clear fix.
 - Runs for an outdated push that keep going after a newer push to the same branch. Cancelling a run when a newer push to its branch starts saves the runner minutes of every run a newer push overtook. Its minutes saved per week are the queue time those runs caused on the critical path of other runs.
