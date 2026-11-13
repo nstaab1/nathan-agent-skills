@@ -11,7 +11,7 @@ Read these docs in the repo first:
 
 - `docs/agents/issue-tracker.md`: how to search, read and file tickets. When it is missing, stop and tell the user to run `/setup-agent-skills`.
 - `docs/agents/triage-labels.md`: the label string for each triage role. When it is missing, the role names `ready-for-agent` and `needs-triage` are the label strings.
-- `docs/agents/ci.md`: the test command, how to fetch CI run history, and the flaky label. When the doc or one of these facts is missing, take the test command from the repo's own scripts and use `flaky-test` as the flaky label.
+- `docs/agents/ci.md`: its Test command, Run history and Labels sections give the test command, the commands that fetch CI runs and their results files, and the flaky label. When the doc or a field is missing or reads `None.`, take the test command from the repo's own scripts and use `flaky-test` as the flaky label.
 
 ## The five kinds
 
