@@ -1,0 +1,6 @@
+retries-off-attempt-1: 1  (vitest run tests/flaky.spec.js)
+retries-off-attempt-2-lastfailed: 0  (vitest run --lastFailed tests/flaky.spec.js)
+retries-on: 0  (vitest run tests/flaky.spec.js --retry 2)
+retries-on-always-fails: 1  (vitest run tests/always-fails.spec.js --retry 2)
+shapes: 1  (vitest run tests/shapes.spec.js tests/sub)
+import-error: 1  (vitest run broken)

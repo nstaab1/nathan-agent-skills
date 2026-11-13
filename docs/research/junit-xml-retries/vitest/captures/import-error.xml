@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="1" failures="1" errors="0" time="0">
+    <testsuite name="broken/import-error.spec.js" timestamp="2026-11-13T22:32:41.837Z" hostname="Mac" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="broken/import-error.spec.js" name="broken/import-error.spec.js" time="0">
+            <failure message="Cannot find module &apos;./module-that-does-not-exist.js&apos; imported from broken/import-error.spec.js" type="Error">
+Error: Cannot find module &apos;./module-that-does-not-exist.js&apos; imported from broken/import-error.spec.js
+ ❯ broken/import-error.spec.js:2:1
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: &apos;ERR_MODULE_NOT_FOUND&apos; }
+            </failure>
+        </testcase>
+    </testsuite>
+</testsuites>

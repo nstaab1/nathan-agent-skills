@@ -59,7 +59,7 @@ A precise halt is a successful run. Inventing a seam or design choice to keep mo
 
 ## Review
 
-Run `/code-review` using `origin/<base-branch>` as the fixed point. Split its findings:
+Run `/ns-code-review` using `origin/<base-branch>` as the fixed point. Split its findings:
 
 - **Mechanical.** One clear fix with no trade-off. Fix it and rerun the affected checks.
 - **Judgment.** Trade-offs, style calls, or anything debatable. Leave the code as-is and record each item under `## Reviewer: look here` in the PR body.

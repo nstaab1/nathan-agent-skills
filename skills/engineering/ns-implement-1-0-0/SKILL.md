@@ -24,10 +24,10 @@ Use /tdd where possible, at pre-agreed seams.
 
 Run typechecking and single test files regularly.
 
-`code-review` reads committed work, so commit before reviewing:
+`ns-code-review` reads committed work, so commit before reviewing:
 
 1. Commit the work to the current branch.
-2. Run /code-review with `origin/<base>` as the fixed point.
+2. Run /ns-code-review with `origin/<base>` as the fixed point.
 3. Split its findings. A **mechanical** finding names a defect or a standards breach with one clear fix: apply it. A **judgment** finding is a trade-off or a style call: leave the code as-is and give a one-line reason.
 4. Run the full test suite once.
 5. Amend the commit so it carries the fixes and, as the last section of its body, the **code review record**. The branch is unpushed, so the amend rewrites nothing shared.
