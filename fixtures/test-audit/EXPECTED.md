@@ -24,7 +24,7 @@ The trial passes when the audit files exactly the five tests below, each under i
 | Tautological | `spec/loans.spec.mjs` | a new release is due back one week after checkout | `ready-for-agent` |
 | Dead | `spec/dates.spec.mjs` | days between counts whole days across a clock change | `ready-for-agent` |
 | Redundant | `spec/fees.spec.mjs` | a book returned three days late owes 75 cents | `needs-triage` |
-| Implementation-coupled | `spec/loans.spec.mjs` | checkout checks the book is available first | `needs-triage` |
+| Implementation-coupled | `spec/loans.spec.mjs` | checkout records who borrowed the book | `needs-triage` |
 | Misplaced | `spec/server.spec.mjs` | GET /fees caps the fee for a long-overdue book | `needs-triage` |
 
 ### Tautological
@@ -50,7 +50,15 @@ It calls `lateFeeCents` with a return three days late, under the cap, and expect
 
 ### Implementation-coupled
 
-It spies on `isAvailable` and asserts `checkout` called it once with `'b2'`. Checked by hand: replacing the call in `checkout` with `this.loans.has(bookId)` changes no behaviour, and this test fails while every other test passes. "a book already on loan cannot be checked out again" covers the behaviour.
+It reads the borrower straight out of `_loans`, the `Map` that backs `LoanDesk`, instead of going through the desk's methods. No other test checks the borrower, so its ticket should suggest rewriting it through the public interface, for instance by asserting the `memberId` that `returnBook` returns, rather than deleting it.
+
+Checked by hand, with the tree clean before and after each change:
+
+- Two refactors that change no behaviour each fail this test and no other, 15 passing and 1 failing: renaming `_loans` to `_onLoan`, and swapping the `Map` for a plain object keyed by book id.
+- It isn't tautological. Recording the wrong borrower, `memberId: null` in `checkout`, fails it at its own assertion (`actual: null, expected: 'm1'`), and a probe shows `returnBook` then reports `null` as the borrower.
+- It isn't redundant, since it is the only test of the borrower.
+
+It replaces an earlier planted test, "checkout checks the book is available first". That test spied on `isAvailable` and asserted only the call, so breaking the availability gate with `&& false` left it passing. The first blind trial rightly filed it as tautological.
 
 ### Misplaced
 
@@ -63,4 +71,4 @@ It starts the HTTP server to check the fee cap. "the fee stops growing at five d
 - "returning a book late reports the fee owed" checks that `returnBook` charges the fee, through `LoanDesk` rather than `lateFeeCents`.
 - "a returned book is available again" calls `isAvailable` as public API and asserts its answer.
 
-Each of the twelve good tests fails under at least one of thirteen hand-made breaks to the code it covers. The tautological test fails under none of them.
+Each of the twelve good tests, and the implementation-coupled test, fails under at least one of sixteen hand-made breaks to the code it covers. The tautological test fails under none of them, and the dead test never runs.

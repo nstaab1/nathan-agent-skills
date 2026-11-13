@@ -11,11 +11,11 @@ export function dueDate(book, from) {
 export class LoanDesk {
   constructor(catalog) {
     this.catalog = catalog;
-    this.loans = new Map();
+    this._loans = new Map();
   }
 
   isAvailable(bookId) {
-    return !this.loans.has(bookId);
+    return !this._loans.has(bookId);
   }
 
   checkout(memberId, bookId, today) {
@@ -27,16 +27,16 @@ export class LoanDesk {
       throw new Error(`${bookId} is already on loan`);
     }
     const loan = { memberId, bookId, due: dueDate(book, today) };
-    this.loans.set(bookId, loan);
+    this._loans.set(bookId, loan);
     return loan;
   }
 
   returnBook(bookId, today) {
-    const loan = this.loans.get(bookId);
+    const loan = this._loans.get(bookId);
     if (!loan) {
       throw new Error(`${bookId} is not on loan`);
     }
-    this.loans.delete(bookId);
+    this._loans.delete(bookId);
     return { ...loan, returned: today, feeCents: lateFeeCents(loan.due, today) };
   }
 }

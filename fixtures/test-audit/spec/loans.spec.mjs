@@ -28,12 +28,10 @@ test('a book already on loan cannot be checked out again', () => {
   assert.throws(() => desk.checkout('m2', 'b2', '2024-03-02'), /already on loan/);
 });
 
-test('checkout checks the book is available first', (t) => {
+test('checkout records who borrowed the book', () => {
   const desk = openDesk();
-  const isAvailable = t.mock.method(desk, 'isAvailable');
   desk.checkout('m1', 'b2', '2024-03-01');
-  assert.equal(isAvailable.mock.callCount(), 1);
-  assert.deepEqual(isAvailable.mock.calls[0].arguments, ['b2']);
+  assert.equal(desk._loans.get('b2').memberId, 'm1');
 });
 
 test('checking out a book the catalog does not hold fails', () => {
