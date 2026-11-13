@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fixing Flaky Tests"
+  short_description: "Wire CI to record, quarantine and fix flaky tests"
+  default_prompt: "Use $fixing-flaky-tests to set this repository up for flaky-test tracking."

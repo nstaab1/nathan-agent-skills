@@ -6,29 +6,33 @@ Commands marked _untried_ have not yet been run in this repo.
 
 ## CI provider
 
-GitHub Actions, with workflows in `.github/workflows/`. The commands below use the `gh` CLI, which infers the repo from `git remote -v` when run inside a clone.
+GitHub Actions, with workflows in `.github/workflows/`. The commands below use the `gh` CLI and name the repo, with `-R <owner>/<repo>` or in the API path, so they read this repo's runs from any clone, including a fork or a clone with no remote.
 
 ## Run history
 
-- **List runs**: `gh run list --limit 200 --created ">=<YYYY-MM-DD>" --json databaseId,workflowName,event,headBranch,status,conclusion,attempt,createdAt,startedAt,updatedAt,url`. Add `--branch <default-branch>` for runs on the default branch, or `--event pull_request` for PR runs. A run whose `attempt` is above 1 was rerun.
-- **Jobs and steps of a run**: `gh api --paginate "repos/<owner>/<repo>/actions/runs/<run-id>/jobs?filter=all" --jq '.jobs[] | {name, run_attempt, conclusion, created_at, started_at, completed_at, steps: [.steps[] | {name, conclusion, started_at, completed_at}]}'`. `filter=all` returns the jobs of every attempt. A job's queue time is `started_at` minus `created_at`.
-- **Failed log**: `gh run view <run-id> --attempt <n> --log-failed`.
-- **Results file of a run**: `gh run download <run-id> --name <results-artifact> --dir <dir>` (_untried_). This works only when the test job uploads its results file as the artifact `<results-artifact>`.
+- **List runs**: `gh run list -R <owner>/<repo> --limit 200 --created ">=<YYYY-MM-DD>" --json databaseId,workflowName,event,headBranch,status,conclusion,attempt,createdAt,startedAt,updatedAt,url`. Add `--branch <default-branch>` for runs on the default branch, or `--event pull_request` for PR runs. A run whose `attempt` is above 1 was rerun.
+- **Jobs and steps of a run**: `gh api --paginate "repos/<owner>/<repo>/actions/runs/<run-id>/jobs?filter=all" --jq '.jobs[] | {id, name, run_attempt, conclusion, created_at, started_at, completed_at, steps: [.steps[] | {name, conclusion, started_at, completed_at}]}'`. `filter=all` returns the jobs of every attempt. A job's queue time is `started_at` minus `created_at`.
+- **Failed log**: `gh run view <run-id> -R <owner>/<repo> --attempt <n> --log-failed`. It can print the failed job's whole log, not only its failed steps.
+- **Full log of a run**: `gh run view <run-id> -R <owner>/<repo> --attempt <n> --log`. To narrow it to one job, replace `--attempt <n>` with `--job <job-id>`, an `id` from Jobs and steps of a run. Each line carries a timestamp, which times the work inside a step.
+- **Results file of a run**: `gh run download <run-id> -R <owner>/<repo> --name <results-artifact> --dir <dir>` (_untried_), where `<results-artifact>` is the artifact the test job uploads its results file as. When the test job uploads none, this field reads `None.`
+
+Both log commands can label every line `UNKNOWN STEP` in place of its step's name, so find a failure or a step by its text.
 
 ## Test command
 
 `<test command>`
 
 - **Job**: `<job>` in `.github/workflows/<workflow-file>`
+- **Step**: `<step>`, the step's name as Jobs and steps of a run reports it
 - **Results file**: `<results-file>`, the JUnit XML file the test command writes
 
-The test command runs the suite. Once the verdict script is wired, it is the command the script wraps. With several test jobs, give each its own command, job and results file here, and its own line under Rerun-failures command.
+The test command runs the suite. Once the verdict script is wired, it is the command the script wraps. The job may run other steps too, and Step names the one that runs the test command. A test command that writes no JUnit XML has `None.` as its Results file, until `fixing-flaky-tests` turns JUnit XML output on when it wires the verdict script. With several test jobs, give each its own command, job, step and results file here, and its own line under Rerun-failures command.
 
 ## Rerun-failures command
 
 `<rerun-failures command>`
 
-The verdict script's second attempt runs this to rerun only the tests that failed. With `None.`, the verdict script reruns the whole test command.
+The verdict script's second attempt runs this to rerun only the tests that failed. It must write the same results file as the test command. With `None.`, the verdict script reruns the whole test command.
 
 ## Verdict script
 
