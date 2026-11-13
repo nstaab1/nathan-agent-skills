@@ -7,6 +7,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { startFakeGitHub } from './fake-github.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const VERDICT = join(here, '../../skills/engineering/fixing-flaky-tests/scripts/verdict.mjs');
@@ -110,3 +111,36 @@ export const runVerdictWith = async (args) => {
 // The summary line that names a test, so a test can check what was said about it.
 export const lineAbout = (summary, text) =>
   summary.split('\n').find((line) => line.includes(text)) ?? '';
+
+// The settings that point the script at a fake tracker, as one CI job.
+export const recordingTo = (tracker, { branch = 'feature/cart', job = 'test', run = '4242' } = {}) => ({
+  flags: [
+    '--tracker-url', tracker.url,
+    '--repo', tracker.repo,
+    '--branch', branch,
+    '--job', job,
+    '--run', run,
+    '--run-url', `https://ci.example/acme/shop/runs/${run}`,
+  ],
+  env: { VERDICT_TRACKER_TOKEN: tracker.token },
+});
+
+// Runs body against a fake GitHub tracker started with these options, then
+// stops the tracker.
+export const withTracker = async (options, body) => {
+  const tracker = await startFakeGitHub(options);
+  try {
+    await body(tracker);
+  } finally {
+    await tracker.close();
+  }
+};
+
+// The flake occurrences on a record, read from each comment's occurrence
+// marker in the form the script's header documents.
+export const OCCURRENCE = /^<!-- verdict-occurrence (\{.*\}) -->$/m;
+export const occurrencesOn = (record) =>
+  record.comments.flatMap((comment) => {
+    const marker = comment.match(OCCURRENCE);
+    return marker ? [JSON.parse(marker[1])] : [];
+  });
