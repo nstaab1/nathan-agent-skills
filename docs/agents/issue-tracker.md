@@ -21,11 +21,11 @@ This clone has two GitHub remotes: `origin` (`nstaab1/nathan-agent-skills`, the 
 
 When set to `yes`, PRs run through the same labels and states as issues, using the `gh pr` equivalents (still with `-R nstaab1/nathan-agent-skills`):
 
-- **Read a PR**: `gh pr view <number> --comments` and `gh pr diff <number>` for the diff.
-- **List external PRs for triage**: `gh pr list --state open --json number,title,body,labels,author,authorAssociation,comments` then keep only `authorAssociation` of `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, or `NONE` (drop `OWNER`/`MEMBER`/`COLLABORATOR`).
-- **Comment / label / close**: `gh pr comment`, `gh pr edit --add-label`/`--remove-label`, `gh pr close`.
+- **Read a PR**: `gh pr view <number> -R nstaab1/nathan-agent-skills --comments` and `gh pr diff <number> -R nstaab1/nathan-agent-skills` for the diff.
+- **List external PRs for triage**: `gh pr list -R nstaab1/nathan-agent-skills --state open --json number,title,body,labels,author,authorAssociation,comments` then keep only `authorAssociation` of `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, or `NONE` (drop `OWNER`/`MEMBER`/`COLLABORATOR`).
+- **Comment / label / close**: `gh pr comment -R nstaab1/nathan-agent-skills`, `gh pr edit -R nstaab1/nathan-agent-skills --add-label`/`--remove-label`, `gh pr close -R nstaab1/nathan-agent-skills`.
 
-GitHub shares one number space across issues and PRs, so a bare `#42` may be either: resolve with `gh pr view 42` and fall back to `gh issue view 42`.
+GitHub shares one number space across issues and PRs, so a bare `#42` may be either: resolve with `gh pr view 42 -R nstaab1/nathan-agent-skills` and fall back to `gh issue view 42 -R nstaab1/nathan-agent-skills`.
 
 ## When a skill says "publish to the issue tracker"
 
