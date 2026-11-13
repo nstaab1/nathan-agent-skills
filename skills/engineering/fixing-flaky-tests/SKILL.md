@@ -37,7 +37,7 @@ List the tracker's labels and create each one it lacks:
 - The Quarantine label, described as "Quarantine: the test still runs, and its failures don't fail the build."
 - `ready-for-agent`, which the script puts on every new record by that exact name. When `docs/agents/triage-labels.md` maps the `ready-for-agent` role to another label, tell the developer that new records will carry `ready-for-agent` anyway.
 
-On GitHub, list with `gh label list -R <owner>/<repo> --limit 1000 --json name` and create with `gh label create "<name>" -R <owner>/<repo> --description "<description>"`. On GitLab, use `glab label list` and `glab label create`. Elsewhere, use the tracker's own way.
+On GitHub, list with `gh label list -R <owner>/<repo> --limit 1000 --json name` and create with `gh label create "<name>" -R <owner>/<repo> --description "<description>"`. On GitLab, list from the repo's checkout with `glab api "projects/:id/labels?per_page=100" --paginate`, which includes the labels the project takes from its groups, and create with `glab label create --name "<name>" --description "<description>" -R <group>/<project>`. Elsewhere, use the tracker's own way.
 
 Done when the tracker holds all three labels.
 
@@ -60,7 +60,7 @@ Done when the repo is known to be unwired, CI is known to disagree with the CI d
 
 ### 4. Wire the repo by PR
 
-Wiring opens one PR that changes the CI config, the test setup and the CI doc together. [WIRING.md](WIRING.md) has the specifics: JUnit XML output and retries for each test framework, the test step on GitHub Actions, and other CI providers.
+Wiring opens one PR that changes the CI config, the test setup and the CI doc together. [WIRING.md](WIRING.md) has the specifics: JUnit XML output and retries for each test framework, the test step on GitHub Actions and on GitLab CI, and other CI providers.
 
 1. **Branch.** Create a branch off the latest default branch, such as `wire-verdict-script`, and commit every change below to it. Push only that branch, so the wiring reaches the default branch only when someone merges the PR.
 2. **Copy the script.** Copy this skill's `scripts/verdict.mjs` into the folder where the repo keeps its CI scripts. When it keeps none, use `.github/scripts/verdict.mjs` on GitHub Actions and `ci/verdict.mjs` elsewhere. Keep the copy byte for byte, so its version line says exactly what runs.
