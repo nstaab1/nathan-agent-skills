@@ -1,13 +1,13 @@
 ---
 name: fixing-flaky-tests
-description: "Flaky tests: wire a repo's CI with the verdict script, which reruns failed tests, records flake occurrences on flaky-test records and quarantines tests by label. Use when the user wants flaky tests tracked, quarantined or fixed, or the verdict script wired or updated."
+description: "Flaky tests: wire a repo's CI with the verdict script, which reruns failed tests, records flake occurrences on flaky-test records and quarantines tests by label, and run the scheduled agent that works the records into fix PRs. Use when the user wants flaky tests tracked, quarantined or fixed, the verdict script wired or updated, or a scheduled flaky-test agent run."
 ---
 
 A **flaky test** failed and passed on the same commit with no code change. This skill stops flaky tests blocking a repo's builds and gets them fixed. Its **verdict script**, [scripts/verdict.mjs](scripts/verdict.mjs), runs in the CI test job. It runs the test command, reruns the failures once, records each **flake occurrence** on the test's **flaky-test record** in the issue tracker, and decides whether the build passes. A test whose open record carries the quarantine label is in **quarantine**: it still runs, and its failures don't fail the build.
 
 The script's header is the reference for everything the script does: its flags, the trackers it supports and the settings each one takes, its decision, how it records and quarantines, and its run summary. Read it before wiring or updating a repo, and take every flag and setting from it.
 
-A repo is **wired** when its CI doc's Verdict script **Location** names a copy of the script, and its CI runs that copy. Every run of this skill starts with [Setting a repo up](#setting-a-repo-up), which wires an unwired repo by PR and checks a wired one.
+A repo is **wired** when its CI doc's Verdict script **Location** names a copy of the script, and its CI runs that copy. A run a person starts begins with [Setting a repo up](#setting-a-repo-up), which wires an unwired repo by PR and checks a wired one. A run of [the scheduled flaky-test agent](#the-scheduled-flaky-test-agent) follows that agent's own steps instead.
 
 ## Setting a repo up
 
@@ -36,10 +36,11 @@ List the tracker's labels and create each one it lacks:
 - The Flaky label, described as "A flaky-test record: one test's flake occurrences, recorded by the verdict script."
 - The Quarantine label, described as "Quarantine: the test still runs, and its failures don't fail the build."
 - `ready-for-agent`, which the script puts on every new record by that exact name. When `docs/agents/triage-labels.md` maps the `ready-for-agent` role to another label, tell the developer that new records will carry `ready-for-agent` anyway.
+- The `ready-for-human` role's label, which the scheduled agent puts on a record it hands to a person: the label `docs/agents/triage-labels.md` maps that role to, or `ready-for-human` when the file is absent.
 
 On GitHub, list with `gh label list -R <owner>/<repo> --limit 1000 --json name` and create with `gh label create "<name>" -R <owner>/<repo> --description "<description>"`. On GitLab, use `glab label list` and `glab label create`. Elsewhere, use the tracker's own way.
 
-Done when the tracker holds all three labels.
+Done when the tracker holds all four labels.
 
 ### 3. Check the wiring
 
@@ -92,4 +93,24 @@ End with:
 - The labels created.
 - Each finding of step 3.
 - Each identity that more than one test shares, from step 4.
-- When `## Scheduled agents` has no `fixing-flaky-tests` line, that the flaky-test automation isn't set up. Nothing works the open records, and nothing takes the quarantine label off an open record, so quarantine never expires. The script never removes that label.
+- When `## Scheduled agents` has no `fixing-flaky-tests` line, that the scheduled flaky-test agent isn't set up. Nothing works the open records, and quarantine never expires, since the script never takes the label off an open record. Give the developer [the daily routine](#the-daily-routine) to create.
+
+## The scheduled flaky-test agent
+
+The scheduled flaky-test agent works a repo's flaky-test records every working day. Each run tidies the records, hands each quarantined record to a person 7 days before its quarantine ends and ends it at 30 days, opens at most three fix PRs, and reports how many tests are quarantined. A person reviews and merges every fix PR. Merging it closes the record, which ends the test's quarantine.
+
+A run follows [SCHEDULED-AGENT.md](SCHEDULED-AGENT.md), whether the routine starts it or a person asks for one, such as "run the scheduled flaky-test agent". Read that file in full before its first step.
+
+### The daily routine
+
+The routine is a scheduled agent the developer creates on their agent platform. This skill describes it and doesn't create it.
+
+Once the wiring PR is merged, run the agent once by hand. It shows that the tracker reads and the CI doc's commands work before a routine depends on them. Then create the routine:
+
+- **Cadence**: daily on working days, early, such as 05:00. Quarantine ends on its 30th day and the warning is due on its 23rd, so a daily run applies each within a day. A weekly run can apply them up to six days late.
+- **Where it runs**: any scheduled agent that starts from a fresh clone of the repo with its full git history and this skill installed, and can run the repo's test command, with the services the tests need. The tracker's tools are signed in with rights to comment on, label and close issues, git and the host's CLI with rights to push branches and open PRs, and the CI provider's tools with read access to runs and their logs. Protect the default branch with a required review, so merging stays with a person.
+- **Prompt**:
+
+  > Run the scheduled flaky-test agent for this repo with the fixing-flaky-tests skill, following its SCHEDULED-AGENT.md from step 1. Tidy the flaky-test records, apply quarantine expiry, then work the queue and open at most three fix PRs. Never merge, approve or auto-merge a PR. End with the quarantined count and what you did to each record.
+
+Then record it under the CI doc's `## Scheduled agents`, in place of `None.` when the section reads that: `- fixing-flaky-tests: daily on working days, <where it runs>`.
