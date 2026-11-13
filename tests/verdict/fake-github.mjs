@@ -3,9 +3,17 @@
 // issues in memory and logs every request it receives. Like GitHub, it pages
 // lists through the Link header, refuses a wrong token with 401 and, when
 // readOnly, refuses every write with 403, as GitHub does for a fork PR's token.
+// `refuse` picks other requests to refuse with 403: it is given each request's
+// { method, path } and returns true to refuse it.
 import { createServer } from 'node:http';
 
-export const startFakeGitHub = async ({ repo = 'acme/shop', token = 'fake-token', readOnly = false, records = [] } = {}) => {
+export const startFakeGitHub = async ({
+  repo = 'acme/shop',
+  token = 'fake-token',
+  readOnly = false,
+  refuse = () => false,
+  records = [],
+} = {}) => {
   const issues = [];
   const requests = [];
   let commentIds = 0;
@@ -56,7 +64,9 @@ export const startFakeGitHub = async ({ repo = 'acme/shop', token = 'fake-token'
 
     const auth = req.headers.authorization;
     if (auth !== `Bearer ${token}` && auth !== `token ${token}`) return send(res, 401, { message: 'Bad credentials' });
-    if (readOnly && req.method !== 'GET') return send(res, 403, { message: 'Resource not accessible by integration' });
+    if ((readOnly && req.method !== 'GET') || refuse({ method: req.method, path: url.pathname })) {
+      return send(res, 403, { message: 'Resource not accessible by integration' });
+    }
 
     const prefix = `/repos/${repo}/issues`;
     if (!url.pathname.startsWith(prefix)) return send(res, 404, { message: 'Not Found' });
@@ -80,6 +90,16 @@ export const startFakeGitHub = async ({ repo = 'acme/shop', token = 'fake-token'
       if (body.state) issue.state = body.state;
       if (body.labels) issue.labels = body.labels.map((label) => (typeof label === 'string' ? label : label.name));
       return send(res, 200, issueJson(issue));
+    }
+    if (sub === 'labels' && rest.length === 0 && req.method === 'POST') {
+      for (const label of body.labels) if (!issue.labels.includes(label)) issue.labels.push(label);
+      return send(res, 200, issue.labels.map((name) => ({ name })));
+    }
+    if (sub === 'labels' && rest.length === 1 && req.method === 'DELETE') {
+      const label = decodeURIComponent(rest[0]);
+      if (!issue.labels.includes(label)) return send(res, 404, { message: 'Label does not exist' });
+      issue.labels = issue.labels.filter((each) => each !== label);
+      return send(res, 200, issue.labels.map((name) => ({ name })));
     }
     if (sub === 'comments' && rest.length === 0 && req.method === 'GET') {
       return sendPage(res, url, issue.comments.map((each) => commentJson(issue, each)));
