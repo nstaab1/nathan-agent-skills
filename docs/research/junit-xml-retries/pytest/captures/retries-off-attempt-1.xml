@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="0.015" timestamp="2026-11-13T17:29:38.540119-05:00" hostname="Mac"><testcase classname="tests.test_flaky" name="test_passes" time="0.000" /><testcase classname="tests.test_flaky" name="test_fails_once" time="0.000"><failure message="AssertionError: fails on its first attempt only&#10;assert not True">first_attempt = True
+
+    def test_fails_once(first_attempt):
+&gt;       assert not first_attempt, "fails on its first attempt only"
+E       AssertionError: fails on its first attempt only
+E       assert not True
+
+tests/test_flaky.py:6: AssertionError</failure></testcase></testsuite></testsuites>

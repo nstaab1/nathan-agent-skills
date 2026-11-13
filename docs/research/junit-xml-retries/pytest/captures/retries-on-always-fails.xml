@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.016" timestamp="2026-11-13T17:29:38.983256-05:00" hostname="Mac"><testcase classname="tests.test_always_fails" name="test_always_fails" time="0.000" /><testcase classname="tests.test_always_fails" name="test_always_fails" time="0.000" /><testcase classname="tests.test_always_fails" name="test_always_fails" time="0.000"><failure message="AssertionError: fails on every attempt&#10;assert (1 + 1) == 3">def test_always_fails():
+&gt;       assert 1 + 1 == 3, "fails on every attempt"
+E       AssertionError: fails on every attempt
+E       assert (1 + 1) == 3
+
+tests/test_always_fails.py:2: AssertionError</failure></testcase></testsuite></testsuites>
