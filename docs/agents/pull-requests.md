@@ -7,7 +7,7 @@ Commands marked _untried_ have not yet been run against a PR in this repo.
 ## 1. Find the PR
 
 - **From a number or link**: `gh pr view <pr> -R nstaab1/nathan-agent-skills --json number,title,headRefName,baseRefName,state,closingIssuesReferences --jq '{number,title,headRefName,baseRefName,state,closes:[.closingIssuesReferences[].number]}'`
-- **From the current branch**: `gh pr view -R nstaab1/nathan-agent-skills --json number --jq .number` (resolves by the checked-out branch name).
+- **From the current branch**: `gh pr view "$(git branch --show-current)" -R nstaab1/nathan-agent-skills --json number --jq .number` (passes the checked-out branch name, because `gh pr view` with `-R` and no argument fails with "argument required when using the --repo flag").
 - **The ticket it closes**: `closes` above, filled from `Closes #<n>` in the PR body. Read the ticket and its parent spec with the commands in `issue-tracker.md`.
 - **Conflicts with base**: `gh pr view <pr> -R nstaab1/nathan-agent-skills --json mergeable,mergeStateStatus`. `CLEAN` / `MERGEABLE` means no conflict.
 
