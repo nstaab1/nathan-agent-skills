@@ -56,7 +56,7 @@ Read bot bodies as returned. They carry HTML badges and comments, but don't stri
 - **List**: `gh pr checks <pr> -R nstaab1/nathan-agent-skills`
 - This repo has no GitHub Actions workflows. The only checks are the two automated reviews, "Greptile Review" and "Cursor Automation: Initial Code Review". Each passes once its review posts, whatever it found, so a green check says nothing about the findings.
 - **Failed log and rerun**: not applicable while there are no workflows. If workflows are added: `gh run view <run-id> -R nstaab1/nathan-agent-skills --log-failed` and `gh run rerun <run-id> -R nstaab1/nathan-agent-skills --failed` (_untried_).
-- **Local checks**: `node scripts/skills.mjs check` (the catalog check) and `node --test scripts/lib/*.test.mjs` (the catalog tooling's tests; passing the directory alone fails).
+- **Local checks**: `node scripts/skills.mjs check` (the catalog check) and `node --test "scripts/**/*.test.mjs" "tests/**/*.test.mjs"` (the catalog tooling's tests and the verdict script's tests). Quote the globs so Node expands them, not the shell. A bare `node --test` also runs the Bun tests in a checked-out `vendor/` mirror, and those fail under Node.
 
 ## 5. Fresh review
 
