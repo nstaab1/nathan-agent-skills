@@ -1,0 +1,4 @@
+interface:
+  display_name: "Auditing Tests"
+  short_description: "Find unneeded tests and file a ticket for each finding"
+  default_prompt: "Use $auditing-tests to audit the slowest tests in this repo."
