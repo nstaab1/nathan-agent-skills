@@ -1,0 +1,4 @@
+interface:
+  display_name: "Reviewing CI Run Times"
+  short_description: "Review CI run history and file ranked suggestions for shorter runs"
+  default_prompt: "Use $reviewing-ci-run-times to run a run-time review of this repository."
