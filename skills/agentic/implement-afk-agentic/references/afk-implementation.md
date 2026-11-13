@@ -20,7 +20,7 @@ Attended implementation has three human gates: seam confirmation, review-finding
 | `implement-afk-agentic` | Build one agent-ready ticket unattended and enforce the halt rule |
 | `open-pr-agentic` | Open the unmerged PR and advance the issue to human verification |
 | `tdd` | Drive red-green vertical slices at the agreed seams |
-| `code-review` | Separate standards and spec review before shipping |
+| `ns-code-review` | Separate standards and spec review before shipping |
 | `codebase-design` | Supply the shared seam and deep-module vocabulary |
 
 ## Repository contract

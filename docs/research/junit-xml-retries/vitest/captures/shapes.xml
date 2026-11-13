@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="16" failures="5" errors="0" time="0.005722458">
+    <testsuite name="tests/shapes.spec.js" timestamp="2026-11-13T22:32:41.518Z" hostname="Mac" tests="15" failures="5" errors="0" skipped="3" time="0.00464125">
+        <testcase classname="tests/shapes.spec.js" name="outer &gt; inner &gt; nested test" time="0.000607542">
+        </testcase>
+        <testcase classname="tests/shapes.spec.js" name="each 1" time="0.000082625">
+        </testcase>
+        <testcase classname="tests/shapes.spec.js" name="each 2" time="0.000049">
+        </testcase>
+        <testcase classname="tests/shapes.spec.js" name="each odd a b" time="0.000062">
+        </testcase>
+        <testcase classname="tests/shapes.spec.js" name="each odd x &gt; y" time="0.000048125">
+        </testcase>
+        <testcase classname="tests/shapes.spec.js" name="each without placeholder" time="0.002136083">
+            <failure message="expected 1 to be 2 // Object.is equality" type="AssertionError">
+AssertionError: expected 1 to be 2 // Object.is equality
+
+- Expected
++ Received
+
+- 2
++ 1
+
+ ❯ tests/shapes.spec.js:20:13
+            </failure>
+        </testcase>
+        <testcase classname="tests/shapes.spec.js" name="each without placeholder" time="0.000052833">
+        </testcase>
+        <testcase classname="tests/shapes.spec.js" name="fails" time="0.000224667">
+            <failure message="expected 1 to be 2 // Object.is equality" type="AssertionError">
+AssertionError: expected 1 to be 2 // Object.is equality
+
+- Expected
++ Received
+
+- 2
++ 1
+
+ ❯ tests/shapes.spec.js:24:13
+            </failure>
+        </testcase>
+        <testcase classname="tests/shapes.spec.js" name="throws" time="0.000182083">
+            <failure message="not an assertion" type="TypeError">
+TypeError: not an assertion
+ ❯ tests/shapes.spec.js:28:9
+            </failure>
+        </testcase>
+        <testcase classname="tests/shapes.spec.js" name="skipped" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="tests/shapes.spec.js" name="todo" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="tests/shapes.spec.js" name="expected to fail" time="0.000206541">
+        </testcase>
+        <testcase classname="tests/shapes.spec.js" name="setup hook fails &gt; under failing beforeAll" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="tests/shapes.spec.js" name="teardown hook fails &gt; passes then afterEach error" time="0.000098458">
+            <failure message="teardown blew up" type="Error">
+Error: teardown blew up
+ ❯ tests/shapes.spec.js:49:11
+            </failure>
+        </testcase>
+        <testcase classname="tests/shapes.spec.js" name="setup hook fails" time="0.000256">
+            <failure message="setup blew up" type="Error">
+Error: setup blew up
+ ❯ tests/shapes.spec.js:41:11
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/sub/nested.spec.js" timestamp="2026-11-13T22:32:41.521Z" hostname="Mac" tests="1" failures="0" errors="0" skipped="0" time="0.001081208">
+        <testcase classname="tests/sub/nested.spec.js" name="nested file" time="0.000607917">
+        </testcase>
+    </testsuite>
+</testsuites>

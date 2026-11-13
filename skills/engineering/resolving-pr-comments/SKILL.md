@@ -83,7 +83,7 @@ Recheck the whole PR diff against its base, not only this round's commits:
 - **Drift**: walk the diff hunk by hunk. Each hunk traces to an anchor line or an approved Fix. List every hunk that doesn't, from this round or an earlier one. Drift builds up over rounds of fixes that each looked reasonable.
 - **Correctness**: typecheck and run the tests that cover the changed files, with the repo's own commands. Read each fixed line against the comment it answers.
 
-When this round's commits change more than about 200 lines, also run the `code-review` skill.
+When this round's commits change more than about 200 lines, also run the `ns-code-review` skill.
 
 Drift or a failure in a commit made for a Fix approved this round goes back to that Fix's subagent as rework. Anything else the recheck finds, such as drift from an earlier round, becomes new rows in the triage table. Show them and wait for the developer's approval before any subagent touches them.
 

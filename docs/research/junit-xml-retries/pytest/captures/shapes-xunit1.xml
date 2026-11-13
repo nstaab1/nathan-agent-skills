@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="3" failures="3" skipped="2" tests="16" time="0.022" timestamp="2026-11-13T17:29:39.214977-05:00" hostname="Mac"><testcase classname="tests.test_shapes" name="test_param[1]" file="tests/test_shapes.py" line="3" time="0.000" /><testcase classname="tests.test_shapes" name="test_param[2]" file="tests/test_shapes.py" line="3" time="0.000" /><testcase classname="tests.test_shapes" name="test_param_odd_ids[a b]" file="tests/test_shapes.py" line="8" time="0.000" /><testcase classname="tests.test_shapes" name="test_param_odd_ids[x[y]::z]" file="tests/test_shapes.py" line="8" time="0.000" /><testcase classname="tests.test_shapes" name="test_param_same_values[same0]" file="tests/test_shapes.py" line="13" time="0.000" /><testcase classname="tests.test_shapes" name="test_param_same_values[same1]" file="tests/test_shapes.py" line="13" time="0.000" /><testcase classname="tests.test_shapes.TestGroup" name="test_in_class" file="tests/test_shapes.py" line="19" time="0.000" /><testcase classname="tests.test_shapes" name="test_fails" file="tests/test_shapes.py" line="23" time="0.000"><failure message="assert 1 == 2">def test_fails():
+&gt;       assert 1 == 2
+E       assert 1 == 2
+
+tests/test_shapes.py:25: AssertionError</failure></testcase><testcase classname="tests.test_shapes" name="test_raises" file="tests/test_shapes.py" line="27" time="0.000"><failure message="TypeError: not an assertion">def test_raises():
+&gt;       raise TypeError("not an assertion")
+E       TypeError: not an assertion
+
+tests/test_shapes.py:29: TypeError</failure></testcase><testcase classname="tests.test_shapes" name="test_skipped" file="tests/test_shapes.py" line="31" time="0.000"><skipped type="pytest.skip" message="skipped on purpose">tests/test_shapes.py:32: skipped on purpose</skipped></testcase><testcase classname="tests.test_shapes" name="test_xfail" file="tests/test_shapes.py" line="36" time="0.000"><skipped type="pytest.xfail" message="expected to fail" /></testcase><testcase classname="tests.test_shapes" name="test_setup_error" file="tests/test_shapes.py" line="46" time="0.000"><error message="failed on setup with &quot;RuntimeError: setup blew up&quot;">@pytest.fixture
+    def broken_setup():
+&gt;       raise RuntimeError("setup blew up")
+E       RuntimeError: setup blew up
+
+tests/test_shapes.py:44: RuntimeError</error></testcase><testcase classname="tests.test_shapes" name="test_passes_then_teardown_error" file="tests/test_shapes.py" line="56" time="0.000"><error message="failed on teardown with &quot;RuntimeError: teardown blew up&quot;">@pytest.fixture
+    def broken_teardown():
+        yield
+&gt;       raise RuntimeError("teardown blew up")
+E       RuntimeError: teardown blew up
+
+tests/test_shapes.py:54: RuntimeError</error></testcase><testcase classname="tests.test_shapes" name="test_fails_then_teardown_error" file="tests/test_shapes.py" line="60" time="0.000"><failure message="assert False">broken_teardown = None
+
+    def test_fails_then_teardown_error(broken_teardown):
+&gt;       assert False
+E       assert False
+
+tests/test_shapes.py:62: AssertionError</failure></testcase><testcase classname="tests.test_shapes" name="test_fails_then_teardown_error" file="tests/test_shapes.py" line="60" time="0.000"><error message="failed on teardown with &quot;RuntimeError: teardown blew up&quot;">@pytest.fixture
+    def broken_teardown():
+        yield
+&gt;       raise RuntimeError("teardown blew up")
+E       RuntimeError: teardown blew up
+
+tests/test_shapes.py:54: RuntimeError</error></testcase><testcase classname="tests.sub.test_nested" name="test_nested" file="tests/sub/test_nested.py" line="0" time="0.000" /></testsuite></testsuites>
