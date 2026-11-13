@@ -11,10 +11,10 @@
 <div class="kicker">Lesson 1 of 7 · about 5 minutes</div>
 <h1>What a CI run is made of</h1>
 
-<p>You described CI as "a list of jobs that fire to verify the code changes". That is right. This lesson adds the two layers under a job, and the one number that decides whether you get a green tick.</p>
+<p>CI is often described as a list of jobs that check a change. That is right as far as it goes. This lesson adds the two layers under a job, and the one number that decides whether you get a green tick.</p>
 
 <div class="win">
-<p><strong>What you'll be able to do:</strong> look at any failed build and say which step failed and why the whole build went red. The verdict script in your design works entirely through this mechanism.</p>
+<p><strong>What you'll be able to do:</strong> look at any failed build and say which step failed and why the whole build went red. The verdict script in the CI-health design works entirely through this mechanism.</p>
 </div>
 
 <h2>Four parts</h2>
@@ -54,7 +54,7 @@
 <tr><td><strong>Run</strong></td><td>One execution of the pipeline for one commit.</td></tr>
 <tr><td><strong>Job</strong></td><td>A list of steps that go in order on one runner.</td></tr>
 <tr><td><strong>Step</strong></td><td>One command, such as <code>pytest</code>.</td></tr>
-<tr><td><strong>Runner</strong></td><td>A fresh machine for one job. It has a copy of your repo and nothing else, and it is thrown away afterwards.</td></tr>
+<tr><td><strong>Runner</strong></td><td>The machine that executes one job. A GitHub-hosted runner is a fresh virtual machine for each job, with common tools preinstalled but without your code until a checkout step fetches it. A self-hosted runner is a machine you manage, and it can keep files between jobs.</td></tr>
 </table>
 
 <p>These are GitHub's words for the parts. GitLab and others use slightly different names for the same shape. Source: <a href="https://docs.github.com/en/actions/learn-github-actions/understanding-github-actions">Understanding GitHub Actions</a>.</p>
@@ -100,11 +100,11 @@
 <figcaption>One non-zero exit code fails the step. The failed step fails the job and the steps after it are skipped. One failed job turns the pull request red.</figcaption>
 </figure>
 
-<h2>Why this matters for your design</h2>
+<h2>Why this matters for the design</h2>
 
 <p>The <strong>verdict script</strong> is a command in the test job. It has one way to say "this build should fail": exit with a non-zero code. It has one way to say "let it through": exit with 0. Quarantine works because the script can see a failed test and still exit 0.</p>
 
-<p>The second diagram also shows a trap. If the tests are their own step and they fail, a later step is skipped by default. A verdict script placed after them would never get a turn. That is the reason the design has the script wrap the test command, as you approved in Q42:</p>
+<p>The second diagram also shows a trap. If the tests are their own step and they fail, a later step is skipped by default. A verdict script placed after them would never get a turn. That is the reason the design has the script wrap the test command:</p>
 
 <pre><code>node verdict.mjs -- pytest --junitxml=results.xml</code></pre>
 
@@ -118,7 +118,7 @@
 <h2>Read next</h2>
 <p>The best single source for this lesson is GitHub's own <a href="https://docs.github.com/en/actions/learn-github-actions/understanding-github-actions">Understanding GitHub Actions</a>. Read "The components of GitHub Actions". It takes about five minutes.</p>
 
-<p>Anything unclear? Ask me in the chat. I'm your teacher for this, and a question now is cheaper than a wrong assumption in lesson 4.</p>
+<p>Anything unclear? Ask your coding agent. It can read these lessons, the skills and the spec, and answer follow-up questions.</p>
 
 <nav class="course">
 Reference: <a href="../reference/glossary.html">glossary</a>. Next: <a href="0002-junit-xml.html">lesson 2, JUnit XML</a>.
@@ -135,10 +135,10 @@ renderQuiz("quiz", [
     why: "A non-zero exit fails the step, the job fails, and later steps are skipped."
   },
   {
-    q: "Which part is a fresh machine that is thrown away after one job?",
+    q: "On GitHub-hosted runners, which part is a fresh machine for each job?",
     options: ["The runner machine", "The workflow file", "The single step"],
     answer: 0,
-    why: "Each job gets its own runner, which starts with a copy of the repo and nothing else."
+    why: "Each job gets its own runner. It has common tools preinstalled, and your code arrives only through a checkout step."
   },
   {
     q: "How does the verdict script tell CI that the build should fail?",

@@ -9,6 +9,7 @@ function renderQuiz(id, questions) {
   let correct = 0;
   const score = document.createElement("p");
   score.className = "score";
+  score.setAttribute("role", "status");
 
   questions.forEach((item, n) => {
     const wrap = document.createElement("div");
@@ -18,6 +19,7 @@ function renderQuiz(id, questions) {
     wrap.appendChild(prompt);
     const why = document.createElement("div");
     why.className = "why";
+    why.setAttribute("role", "status");
 
     const order = item.options.map((text, i) => ({ text, i }));
     for (let k = order.length - 1; k > 0; k--) {

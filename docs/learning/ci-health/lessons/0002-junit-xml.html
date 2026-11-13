@@ -111,7 +111,7 @@
 
 <h2>The name the design tracks</h2>
 
-<p>Each testcase carries two labels: <code>classname</code>, which says where the test lives, and <code>name</code>, which is the test itself. In Q30 you approved using the two together, exactly as written in the file, as the test's identity. The flaky-test record for the failure above would be titled:</p>
+<p>Each testcase carries two labels: <code>classname</code>, which says where the test lives, and <code>name</code>, which is the test itself. The design uses the two together, exactly as written in the file, as the test's identity. The flaky-test record for the failure above would be titled:</p>
 
 <pre><code>flaky: tests.test_cart test_checkout_total</code></pre>
 
@@ -129,7 +129,7 @@
 <h2>Read next</h2>
 <p>The pytest page <a href="https://docs.pytest.org/en/stable/how-to/output.html#creating-junitxml-format-files">Creating JUnitXML format files</a> is short and shows the flag in use. For a hands-on win, run <code>pytest --junitxml=results.xml</code> or <code>vitest run --reporter=junit --outputFile=results.xml</code> in any repo of yours and open the file.</p>
 
-<p>Anything unclear? Ask me in the chat. I'm your teacher for this.</p>
+<p>Anything unclear? Ask your coding agent. It can read these lessons, the skills and the spec, and answer follow-up questions.</p>
 
 <nav class="course">
 Previous: <a href="0001-what-a-ci-run-is-made-of.html">lesson 1</a>. Reference: <a href="../reference/glossary.html">glossary</a>. Next: <a href="0003-retries-and-flake-occurrences.html">lesson 3, retries and flake occurrences</a>.
@@ -155,7 +155,7 @@ renderQuiz("quiz", [
     q: "Which two attributes together give a test its identity in a flaky-test record?",
     options: ["classname and name", "failures and tests", "message and name"],
     answer: 0,
-    why: "You approved this in Q30: classname plus name, copied exactly as the file has them."
+    why: "The design uses classname plus name, copied exactly as the file has them."
   },
   {
     q: "Why does the verdict script read JUnit XML instead of the terminal output?",

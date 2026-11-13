@@ -19,7 +19,7 @@
 
 <h2>Its two jobs</h2>
 
-<p>Your glossary defines the <strong>verdict script</strong> as the script that runs a CI job's tests, retries the failures, records flake occurrences and decides whether the build passes, ignoring failures of quarantined tests. That is two outputs:</p>
+<p>The repo glossary defines the <strong>verdict script</strong> as the script that runs a CI job's tests, retries the failures, records flake occurrences and decides whether the build passes, ignoring failures of quarantined tests. That is two outputs:</p>
 
 <table>
 <tr><th>Output</th><th>Where it goes</th></tr>
@@ -84,7 +84,7 @@
   <text class="d-text" x="210" y="399" text-anchor="middle">5 · Nothing left that must fail the build</text>
   <text class="d-text" x="210" y="417" text-anchor="middle">Exit 0</text>
 </svg>
-<figcaption>Red boxes are the only ways the build fails: a crash, or a test that failed twice and is not quarantined.</figcaption>
+<figcaption>Red boxes are the ways the build fails: a crash, or a test that failed twice and is not quarantined. An incomplete rerun also fails it, as step 3 below explains.</figcaption>
 </figure>
 
 <h2>The steps in words</h2>
@@ -93,7 +93,9 @@
 
 <p><strong>2. Check for failures.</strong> If file 1 has no failed test, the script looks at the command's own exit code. Zero means a clean run. Non-zero with no failed test means the test command crashed before it could report, so the build fails. This is the case <code>|| true</code> would have hidden.</p>
 
-<p><strong>3. Run the failures again.</strong> This is your Q69 decision. If the repo has a "rerun only the failures" command for its framework, the script uses it. If not, it reruns the whole test command. Either way it gets results file 2.</p>
+<p><strong>3. Run the failures again.</strong> If the repo's CI doc names a command that reruns only the failed tests, the script uses it. If not, it reruns the whole test command. Either way it gets results file 2.</p>
+
+<p>If the rerun crashes, writes no readable results file, or leaves out a test that failed in attempt 1, the build fails. A missing result is never treated as a pass.</p>
 
 <p><strong>4. Compare, test by test.</strong> For each test that failed in attempt 1:</p>
 <table>
@@ -107,7 +109,7 @@
 
 <h2>Where the quarantine list comes from</h2>
 
-<p>In step 4 the script asks the issue tracker which tests carry the quarantine label. If the tracker can't be reached, the script treats the list as empty (your Q33 decision). An outage can therefore make a build stricter, and can never let a real failure through.</p>
+<p>In step 4 the script asks the issue tracker which tests carry the quarantine label. If the tracker can't be reached, the script treats the list as empty. An outage can therefore make a build stricter, and can never let a real failure through.</p>
 
 <p>One consequence to be clear about: while a test is quarantined, the script can't tell "flaked twice" from "is truly broken now". Both are ignored. The 30-day expiry and the cap on quarantined tests exist to limit that blind spot. Lesson 5 covers them.</p>
 
@@ -117,9 +119,9 @@
 <div class="quiz" id="quiz"></div>
 
 <h2>Read next</h2>
-<p>Your own decision record, <code>docs/adr/0001-quarantine-is-a-tracker-label.md</code> in the skills repo. It is one page, and after this lesson every sentence in it should make sense. If one doesn't, that is the question to ask me.</p>
+<p>The design's decision record, <code>docs/adr/0001-quarantine-is-a-tracker-label.md</code> at the repo root. It is one page, and after this lesson every sentence in it should make sense. If one doesn't, ask about it.</p>
 
-<p>Anything unclear? Ask me in the chat. I'm your teacher for this.</p>
+<p>Anything unclear? Ask your coding agent. It can read these lessons, the skills and the spec, and answer follow-up questions.</p>
 
 <nav class="course">
 Previous: <a href="0003-retries-and-flake-occurrences.html">lesson 3</a>. Reference: <a href="../reference/glossary.html">glossary</a>. Next: <a href="0005-the-flaky-test-record-and-quarantine.html">lesson 5, the flaky-test record and quarantine</a>.
@@ -143,7 +145,9 @@ renderQuiz("quiz", [
   { q: "The test command crashes with exit code 1. The results file lists no failed tests.", options: [A, B, C], answer: 2,
     why: "A non-zero exit with no failed test to explain it is a crash, and a crash fails the build." },
   { q: "The tracker is down. <code>test_login</code> is quarantined and fails on both attempts.", options: [A, B, C], answer: 2,
-    why: "With no tracker the quarantine list is treated as empty, so the failure counts. Stricter, never looser." }
+    why: "With no tracker the quarantine list is treated as empty, so the failure counts. Stricter, never looser." },
+  { q: "The rerun crashes and writes no results file.", options: [A, B, C], answer: 2,
+    why: "A missing result is never treated as a pass, so an incomplete rerun fails the build." }
 ]);
 </script>
 </body>

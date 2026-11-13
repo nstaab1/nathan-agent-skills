@@ -10,66 +10,65 @@
 <main>
 <div class="kicker">Reference · every decision on one page</div>
 <h1>Design map</h1>
-<p>The question number beside each line is where you decided it. Open: <strong>Q60</strong>.</p>
+<p>The decisions behind the CI-health skills, grouped by skill. The full write-up is <a href="https://github.com/nstaab1/nathan-agent-skills/issues/12">spec #12</a>, and the work is split into tickets #13 to #25.</p>
 
-<h2>Ticket 1 · ns-code-review</h2>
+<h2>ns-code-review</h2>
 <table>
-<tr><th>Decision</th><th>Q</th></tr>
-<tr><td>A new owned skill named <code>ns-code-review</code>, with no version in the name.</td><td>52, 54</td></tr>
-<tr><td>The original <code>code-review</code> is restored to Matt's verbatim text.</td><td>55</td></tr>
-<tr><td>Owned and already-modified skills point at <code>ns-code-review</code>. <code>tdd</code> stays verbatim.</td><td>56</td></tr>
-<tr><td>Whether Matt's verbatim <code>implement</code> is changed too.</td><td><strong>60, open</strong></td></tr>
+<tr><th>Decision</th><th>Ticket</th></tr>
+<tr><td>An owned skill named <code>ns-code-review</code>, with no version in the name.</td><td>#14</td></tr>
+<tr><td>The vendored <code>code-review</code> is restored to the vendor's verbatim text.</td><td>#14</td></tr>
+<tr><td>Owned and already-modified skills point at <code>ns-code-review</code>. The verbatim vendor skills <code>tdd</code> and <code>implement</code> are not edited.</td><td>#14</td></tr>
+<tr><td>It carries a short copy of the five kinds of unneeded test and reports them as Standards findings.</td><td>#16</td></tr>
 </table>
 
-<h2>Ticket 2 · auditing-tests</h2>
+<h2>auditing-tests</h2>
 <table>
-<tr><th>Decision</th><th>Q</th></tr>
-<tr><td>Five kinds of unneeded test: tautological, redundant, implementation-coupled, misplaced, dead.</td><td>3</td></tr>
-<tr><td>Tautological findings need a mutation check. The rest are reasoning.</td><td>4</td></tr>
-<tr><td>The audit files tickets and never deletes tests itself.</td><td>5</td></tr>
-<tr><td>Tautological and dead go to <code>ready-for-agent</code>. The other three go to <code>needs-triage</code>.</td><td>37</td></tr>
-<tr><td>It covers a scope you name, or the slowest tests first.</td><td>34</td></tr>
-<tr><td>On demand only. No schedule.</td><td>41</td></tr>
-<tr><td><code>ns-code-review</code> carries a short copy of the five kinds and reports them as Standards findings.</td><td>57, 58</td></tr>
+<tr><th>Decision</th><th>Ticket</th></tr>
+<tr><td>Five kinds of unneeded test: tautological, redundant, implementation-coupled, misplaced, dead.</td><td>#15</td></tr>
+<tr><td>Tautological findings need a mutation check. Dead tests are shown by their skip marker. The other three rest on written reasoning.</td><td>#15</td></tr>
+<tr><td>The audit files tickets and never deletes tests itself.</td><td>#15</td></tr>
+<tr><td>Tautological and dead go to <code>ready-for-agent</code>. The other three go to <code>needs-triage</code>.</td><td>#15</td></tr>
+<tr><td>It covers a named scope, or the slowest tests first.</td><td>#15</td></tr>
+<tr><td>It runs on demand only, and skips tests with an open flaky-test record.</td><td>#15</td></tr>
 </table>
 
-<h2>Ticket 3 · fixing-flaky-tests</h2>
+<h2>fixing-flaky-tests</h2>
 <table>
-<tr><th>Decision</th><th>Q</th></tr>
-<tr><td>A flaky test both failed and passed on the same commit. Failing every attempt is a real failure.</td><td>7, 8</td></tr>
-<tr><td>One shipped Node script, the verdict script, copied into each repo with a version line.</td><td>27, 43, 44</td></tr>
-<tr><td>It wraps the test command, so it sees the real exit code.</td><td>42</td></tr>
-<tr><td>It does the retry itself and compares two results files. It reruns only the failures when the repo has a command for that, and the whole command otherwise.</td><td>69</td></tr>
-<tr><td>No detection from manual reruns in the first version.</td><td>70</td></tr>
-<tr><td>One flaky-test record per test case, titled with <code>classname</code> plus <code>name</code>, labelled <code>ready-for-agent</code>.</td><td>6, 30, 31, 36</td></tr>
-<tr><td>Quarantine is a tracker label, with no change to test code.</td><td>ADR 1</td></tr>
-<tr><td>Into quarantine: three occurrences, in 30 days, across at least two branches, under a cap of 5% of the suite.</td><td>8, 2, 3, 32</td></tr>
-<tr><td>Out of quarantine: fix merged, or 30 days pass. A human is warned seven days before.</td><td>32, 40</td></tr>
-<tr><td>Tracker unreachable means nothing is treated as quarantined.</td><td>33</td></tr>
-<tr><td>Works with GitHub and GitLab trackers. Fork pull requests get a verdict but can't record.</td><td>45, 46</td></tr>
-<tr><td>The scheduled agent takes quarantined records first, opens at most three fix PRs per run with 20 passes in a row as proof, and never merges.</td><td>6, 38</td></tr>
-<tr><td>It may delete a flaky test only when the test is one of the five unneeded kinds.</td><td>7</td></tr>
-<tr><td>A fixed test that flakes again reopens its old record.</td><td>39</td></tr>
-<tr><td>The skill has its own setup step, delivered as a PR, and warns when scheduled agents aren't documented.</td><td>49, 10</td></tr>
-<tr><td>First task: run pytest and Vitest and inspect the real results files.</td><td>from lesson 3</td></tr>
+<tr><th>Decision</th><th>Ticket</th></tr>
+<tr><td>A flaky test both failed and passed on the same commit. Failing every attempt is a real failure and never counts.</td><td>#18</td></tr>
+<tr><td>Before building, real JUnit XML from pytest and Vitest is inspected, since the retry claims rest on third-party reports.</td><td>#17</td></tr>
+<tr><td>One single-file Node script, the verdict script, copied into each repo with a version line.</td><td>#18, #23</td></tr>
+<tr><td>It wraps the test command, so it sees the real exit code.</td><td>#18</td></tr>
+<tr><td>It does the retry itself and compares two results files. It reruns only the failures when the repo has a command for that, and the whole command otherwise.</td><td>#18</td></tr>
+<tr><td>A crashed or incomplete rerun fails the build. A missing result is never a pass.</td><td>#18</td></tr>
+<tr><td>One flaky-test record per test case, titled with <code>classname</code> plus <code>name</code>, labelled <code>ready-for-agent</code>.</td><td>#19</td></tr>
+<tr><td>Several jobs of one run count as one occurrence. A fixed test that flakes again reopens its old record.</td><td>#19</td></tr>
+<tr><td>Quarantine is a tracker label, with no change to test code (ADR 0001).</td><td>#20</td></tr>
+<tr><td>Into quarantine: three occurrences, within 30 days, across at least two branches, under a cap of 5% of the suite.</td><td>#20</td></tr>
+<tr><td>Tracker unreachable means nothing is treated as quarantined.</td><td>#20</td></tr>
+<tr><td>GitHub and GitLab trackers. Fork pull requests get a verdict but can't record.</td><td>#19, #21</td></tr>
+<tr><td>Setup is delivered as a PR, and the skill warns when scheduled agents aren't documented.</td><td>#23</td></tr>
+<tr><td>The scheduled agent takes quarantined records first, opens at most three fix PRs per run with 20 passes in a row as proof, and never merges.</td><td>#24</td></tr>
+<tr><td>Out of quarantine: the fix is merged, or 30 days pass. A human is warned seven days before.</td><td>#24</td></tr>
+<tr><td>A flaky test may be deleted only when it is one of the five unneeded kinds.</td><td>#24</td></tr>
+<tr><td>Detection from manual job re-runs is not in the first version.</td><td>spec</td></tr>
 </table>
 
-<h2>Ticket 4 · reviewing-ci-run-times</h2>
+<h2>reviewing-ci-run-times</h2>
 <table>
-<tr><th>Decision</th><th>Q</th></tr>
-<tr><td>A weekly scheduled agent, also runnable by hand. Not a job on every run.</td><td>9</td></tr>
-<tr><td>Reads the last 30 days of runs, up to 200.</td><td>50</td></tr>
-<tr><td>Checks slow jobs and steps, caching, parallel jobs, sharding, path filters, slow tests, rerun rate and queue time.</td><td>9</td></tr>
-<tr><td>One ticket per review, ranked by minutes saved per week, linked to the previous review.</td><td>9</td></tr>
-<tr><td>Slow tests are handed to the audit as a suggested scope.</td><td>9, 41</td></tr>
+<tr><th>Decision</th><th>Ticket</th></tr>
+<tr><td>A weekly scheduled agent, also runnable by hand. Not a job on every run.</td><td>#25</td></tr>
+<tr><td>Reads the last 30 days of runs, up to 200.</td><td>#25</td></tr>
+<tr><td>Checks slow jobs and steps, caching, parallel jobs, sharding, path filters, slow tests, rerun rate and queue time.</td><td>#25</td></tr>
+<tr><td>One ticket per review, ranked by minutes saved per week, linked to the previous review.</td><td>#25</td></tr>
+<tr><td>Slow tests are handed to the audit as a suggested scope.</td><td>#25</td></tr>
 </table>
 
 <h2>Shared</h2>
 <table>
-<tr><th>Decision</th><th>Q</th></tr>
-<tr><td>Three skills plus an addition to <code>setup-agent-skills</code>.</td><td>1</td></tr>
-<tr><td>Provider-agnostic. Each repo's CI is described in <code>docs/agents/ci.md</code>.</td><td>2, 1</td></tr>
-<tr><td>Build order: tickets 1, 2, 3, 4, written up as a spec with tickets.</td><td>53, 59</td></tr>
+<tr><th>Decision</th><th>Ticket</th></tr>
+<tr><td>Provider-agnostic. Each repo's CI is described in a CI doc written by <code>setup-agent-skills</code>.</td><td>#22</td></tr>
+<tr><td>The glossary, ADR 0001 and the triage labels land first.</td><td>#13</td></tr>
 </table>
 
 <nav class="course">Back to <a href="../lessons/0007-the-four-pieces-together.html">lesson 7</a>. See also the <a href="glossary.html">glossary</a>.</nav>

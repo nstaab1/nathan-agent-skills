@@ -30,9 +30,9 @@
 
 ## Wisdom (Communities)
 
-- None chosen yet. Not asked.
+- None listed yet.
 
 ## Gaps
 
 - No single official JUnit XML specification exists. It is a de facto format with dialects per tool.
-- How pytest and Vitest report a retried test rests on third-party reports. Nobody here has run them to confirm. The Vitest evidence is one project's PR, which is weak.
+- How pytest and Vitest report a retried test rests on third-party reports. Ticket #17 checks them against real files.

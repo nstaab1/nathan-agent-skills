@@ -11,23 +11,11 @@
 <div class="kicker">Lesson 7 of 7 · about 7 minutes</div>
 <h1>The four pieces together</h1>
 
-<p>You now understand each mechanism. This last lesson shows how they fit, covers the one piece we haven't looked at, and ends with you confirming the design.</p>
+<p>Lessons 1 to 6 covered each mechanism. This last lesson shows how they fit, and covers the one piece not yet looked at: the run-time review.</p>
 
 <div class="win">
-<p><strong>What you'll be able to do:</strong> explain the whole design from one picture, and sign it off or say what to change.</p>
+<p><strong>What you'll be able to do:</strong> explain the whole design from one picture.</p>
 </div>
-
-<h2>One fix from lesson 6 first</h2>
-
-<p>You called a test with no assertion a dead test. The difference is whether the test runs.</p>
-
-<table>
-<tr><th>Kind</th><th>Does it run?</th><th>Does it check anything?</th></tr>
-<tr><td><strong>Dead</strong></td><td>No. It is skipped or disabled.</td><td>It can't, because it never runs.</td></tr>
-<tr><td><strong>Tautological</strong></td><td>Yes, on every build.</td><td>No. It passes even when the behaviour is broken.</td></tr>
-</table>
-
-<p>A test with no assertion runs every time and can never fail, so it is tautological.</p>
 
 <h2>The map</h2>
 
@@ -72,16 +60,16 @@
 <figcaption>The small arrow at the top: when slow tests dominate, the run-time review hands the audit a list of where to look.</figcaption>
 </figure>
 
-<p>Each piece answers one of the problems you started with:</p>
+<p>Each piece answers one of the problems the design set out to solve:</p>
 
 <table>
-<tr><th>Your problem</th><th>The piece</th></tr>
+<tr><th>The problem</th><th>The piece</th></tr>
 <tr><td>Agents write too many tests</td><td><code>ns-code-review</code> stops them at review. <code>auditing-tests</code> finds the ones already merged.</td></tr>
 <tr><td>Flaky tests and reruns</td><td><code>fixing-flaky-tests</code>: the verdict script, the records, quarantine and the scheduled agent.</td></tr>
 <tr><td>CI takes too long</td><td><code>reviewing-ci-run-times</code>, with help from the audit removing misplaced tests.</td></tr>
 </table>
 
-<h2>The piece we haven't covered: the run-time review</h2>
+<h2>The run-time review</h2>
 
 <p>A <strong>run-time review</strong> is a scheduled look at CI history that files suggestions for shortening runs. Once a week an agent reads the last 30 days of runs, up to 200, and looks for:</p>
 
@@ -98,7 +86,7 @@
 
 <h2>The file that ties it together</h2>
 
-<p><code>docs/agents/ci.md</code> lives in each repo that uses the skills. It is the "standard place to look" you asked for at the start. It records the CI provider, how to fetch run history, the test command, the "rerun only the failures" command if the framework has one, where the verdict script is, the label names, the quarantine cap and which scheduled agents are set up.</p>
+<p><code>docs/agents/ci.md</code> lives in each repo that uses the skills. It is the one standard place every skill looks. It records the CI provider, how to fetch run history, the test command, the "rerun only the failures" command if the framework has one, where the verdict script is, the label names, the quarantine cap and which scheduled agents are set up.</p>
 
 <h2>Build order</h2>
 
@@ -115,15 +103,11 @@
 
 <div class="quiz" id="quiz"></div>
 
-<h2>Now confirm the design</h2>
+<h2>Where the work is tracked</h2>
 
-<p>The full list of decisions, one page, is in the <a href="../reference/design-map.html">design map</a>. Read it once. Then tell me in the chat:</p>
-<ol>
-<li>Your answer to Q60, which is explained in the chat.</li>
-<li>Whether the design map matches what you want built, or what to change.</li>
-</ol>
+<p>The design is written up as <a href="https://github.com/nstaab1/nathan-agent-skills/issues/12">spec #12</a> and split into tickets #13 to #25. The <a href="../reference/design-map.html">design map</a> lists every decision on one page, grouped by skill.</p>
 
-<p>If any line in the design map doesn't make sense, ask. That is exactly what this course was for.</p>
+<p>Anything unclear? Ask your coding agent. It can read these lessons, the skills and the spec, and answer follow-up questions.</p>
 
 <nav class="course">
 Previous: <a href="0006-tautological-tests-and-the-mutation-check.html">lesson 6</a>. Reference: <a href="../reference/glossary.html">glossary</a>, <a href="../reference/design-map.html">design map</a>.
@@ -134,10 +118,10 @@ Previous: <a href="0006-tautological-tests-and-the-mutation-check.html">lesson 6
 <script>
 renderQuiz("quiz", [
   {
-    q: "From lesson 6: a test runs on every build and contains no assertion. Which kind is it?",
+    q: "From lesson 6: a test works out its expected value by calling the same function it tests. Which kind is it?",
     options: ["Tautological test", "Dead test", "Misplaced test"],
     answer: 0,
-    why: "It runs, so it isn't dead. It can never fail, so it is tautological."
+    why: "It runs, so it isn't dead. If the function is wrong, both sides are wrong together, so the test can't fail."
   },
   {
     q: "Which piece of the design runs inside every CI run?",
@@ -167,7 +151,7 @@ renderQuiz("quiz", [
     q: "The flaky-tests ticket starts with a small task. What is it?",
     options: ["Inspect real results files", "Delete every flaky test", "Rewrite the test framework"],
     answer: 0,
-    why: "The claims about how pytest and Vitest write retries came from other people's reports. We check them ourselves first."
+    why: "The claims about how pytest and Vitest write retries came from third-party reports, so they are checked against real files first."
   },
   {
     q: "From lesson 4: a quarantined test fails on both attempts and the tracker is reachable. What does the verdict script do?",

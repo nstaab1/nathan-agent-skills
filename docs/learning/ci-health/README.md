@@ -16,6 +16,6 @@ Open `lessons/0001-what-a-ci-run-is-made-of.html` in a browser and follow the li
 
 `reference/glossary.html` and `reference/design-map.html` are the two pages to come back to. The design map lists every decision by ticket.
 
-The lessons refer to `GLOSSARY.md` and `docs/adr/0001-quarantine-is-a-tracker-label.md` at the repo root. Those arrive with the spec for this work.
+The design is written up in [spec #12](https://github.com/nstaab1/nathan-agent-skills/issues/12) and split into tickets #13 to #25. The lessons refer to `GLOSSARY.md` and `docs/adr/0001-quarantine-is-a-tracker-label.md` at the repo root, which land with ticket #13.
 
 Sources are listed in `RESOURCES.md`.

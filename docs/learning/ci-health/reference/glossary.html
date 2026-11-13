@@ -10,7 +10,7 @@
 <main>
 <div class="kicker">Reference</div>
 <h1>Glossary</h1>
-<p>Terms are added as each lesson teaches them. The design's own terms come from <code>GLOSSARY.md</code> in the skills repo and are used here unchanged.</p>
+<p>Terms are added as each lesson teaches them. The design's own terms come from <code>GLOSSARY.md</code> at the repo root and are used here unchanged.</p>
 
 <h2 id="ci">How CI is put together</h2>
 <table>
@@ -18,7 +18,7 @@
 <tr id="run"><td><strong>Run</strong></td><td>One execution of the CI pipeline for one commit. It holds one or more jobs.</td><td><a href="../lessons/0001-what-a-ci-run-is-made-of.html">1</a></td></tr>
 <tr id="job"><td><strong>Job</strong></td><td>A list of steps that execute in order on one runner. Jobs in a run execute side by side unless told otherwise.</td><td><a href="../lessons/0001-what-a-ci-run-is-made-of.html">1</a></td></tr>
 <tr id="step"><td><strong>Step</strong></td><td>One command inside a job, such as "install" or "run the tests".</td><td><a href="../lessons/0001-what-a-ci-run-is-made-of.html">1</a></td></tr>
-<tr id="runner"><td><strong>Runner</strong></td><td>The fresh machine that executes one job. It starts with a copy of the repo and nothing else.</td><td><a href="../lessons/0001-what-a-ci-run-is-made-of.html">1</a></td></tr>
+<tr id="runner"><td><strong>Runner</strong></td><td>The machine that executes one job. GitHub-hosted runners are fresh for each job, with tools preinstalled; your code arrives through a checkout step. Self-hosted runners can keep files between jobs.</td><td><a href="../lessons/0001-what-a-ci-run-is-made-of.html">1</a></td></tr>
 <tr id="exit-code"><td><strong>Exit code</strong></td><td>The number a command hands back when it finishes. 0 means success. Anything else means failure.</td><td><a href="../lessons/0001-what-a-ci-run-is-made-of.html">1</a></td></tr>
 </table>
 
@@ -49,6 +49,7 @@
 <tr><td>Failed twice, not quarantined</td><td>1</td><td>nothing</td></tr>
 <tr><td>Failed twice, quarantined</td><td>0</td><td>nothing</td></tr>
 <tr><td>Test command crashed, no failed test in the file</td><td>1</td><td>nothing</td></tr>
+<tr><td>Rerun crashed, or left a failed test without a result</td><td>1</td><td>nothing</td></tr>
 <tr><td>Tracker unreachable</td><td colspan="2">Quarantine list is treated as empty, so the build is stricter</td></tr>
 </table>
 <p>See <a href="../lessons/0004-the-verdict-script.html">lesson 4</a> for the flowchart.</p>

@@ -11,15 +11,15 @@
 <div class="kicker">Lesson 6 of 7 · about 7 minutes</div>
 <h1>Tautological tests and the mutation check</h1>
 
-<p>Lessons 1 to 5 covered flaky tests. This one covers the other half of your design, the <strong>test audit</strong>, which finds tests that cost CI time and protect nothing.</p>
+<p>Lessons 1 to 5 covered flaky tests. This one covers the other half of the design, the <strong>test audit</strong>, which finds tests that cost CI time and protect nothing.</p>
 
 <div class="win">
 <p><strong>What you'll be able to do:</strong> look at a test and name which of the five kinds of unneeded test it is, and say how the audit proves a tautological one.</p>
 </div>
 
-<h2>The test from your baseline</h2>
+<h2>A test that can't fail</h2>
 
-<p>Before lesson 1 I showed you this and asked what was wrong with it:</p>
+<p>Here is a test that looks reasonable at first glance:</p>
 
 <pre><code>def test_discount():
     cart = Mock()
@@ -56,11 +56,11 @@
 <figcaption>The test checks that 90 is 90. You could delete the entire discount feature and it would still pass.</figcaption>
 </figure>
 
-<p>Your glossary calls this a <strong>tautological test</strong>: a test that still passes when the behaviour it claims to verify is broken.</p>
+<p>The repo glossary calls this a <strong>tautological test</strong>: a test that still passes when the behaviour it claims to verify is broken.</p>
 
 <h2>Proving it: the mutation check</h2>
 
-<p>"Looks tautological" is an opinion. In Q4 you asked for proof. The <strong>mutation check</strong> is the proof: break the real code on purpose, run the suspect test, and see what happens.</p>
+<p>"Looks tautological" is an opinion, and the audit hands tautological findings straight to an agent, so it needs proof. The <strong>mutation check</strong> is the proof: break the real code on purpose, run the suspect test, and see what happens.</p>
 
 <figure>
 <svg viewBox="0 0 680 210" role="img" aria-label="Break the real code, run the suspect test. If it still passes the test is proven tautological. If it fails the test is doing its job.">
@@ -87,7 +87,7 @@
 <figcaption>Afterwards the audit puts the real code back exactly as it was.</figcaption>
 </figure>
 
-<p>The idea comes from mutation testing, where a tool makes small deliberate breakages and checks whether any test notices. A breakage no test catches is said to be "alive" (<a href="https://testing.googleblog.com/2021/04">Google Testing Blog, April 2021</a>; <a href="https://research.google/pubs/pub50658/">Practical Mutation Testing at Scale</a>). Full mutation testing breaks code everywhere and is slow. Your design uses the same trick on one suspect test at a time.</p>
+<p>The idea comes from mutation testing, where a tool makes small deliberate breakages and checks whether any test notices. A breakage no test catches is said to be "alive" (<a href="https://testing.googleblog.com/2021/04">Google Testing Blog, April 2021</a>; <a href="https://research.google/pubs/pub50658/">Practical Mutation Testing at Scale</a>). Full mutation testing breaks code everywhere and is slow. The audit uses the same trick on one suspect test at a time.</p>
 
 <p>For contrast, here is a version that would fail the moment the discount broke, because it runs the real cart:</p>
 
@@ -95,6 +95,8 @@
     cart = Cart(items=[Item(price=100)])
     cart.apply_discount(percent=10)
     assert cart.total() == 90</code></pre>
+
+<p>A test with no assertion is not automatically tautological. If the code under test throws an exception, the test still fails, and a smoke test that checks an operation completes can be useful. A test is tautological only when the behaviour it claims to check can break without the test failing. The mutation check is how the audit finds out.</p>
 
 <h2>The five kinds of unneeded test</h2>
 
@@ -126,9 +128,9 @@
 <div class="quiz" id="quiz"></div>
 
 <h2>Read next</h2>
-<p>The "Test audit" section of <code>GLOSSARY.md</code> in the skills repo, then the abstract of <a href="https://research.google/pubs/pub50658/">Practical Mutation Testing at Scale</a> if you want to see where the mutation idea comes from.</p>
+<p>The "Test audit" section of <code>GLOSSARY.md</code> at the repo root, then the abstract of <a href="https://research.google/pubs/pub50658/">Practical Mutation Testing at Scale</a> if you want to see where the mutation idea comes from.</p>
 
-<p>Anything unclear? Ask me in the chat. I'm your teacher for this.</p>
+<p>Anything unclear? Ask your coding agent. It can read these lessons, the skills and the spec, and answer follow-up questions.</p>
 
 <nav class="course">
 Previous: <a href="0005-the-flaky-test-record-and-quarantine.html">lesson 5</a>. Reference: <a href="../reference/glossary.html">glossary</a>. Next: <a href="0007-the-four-pieces-together.html">lesson 7, the four pieces together</a>.
@@ -139,10 +141,10 @@ Previous: <a href="0005-the-flaky-test-record-and-quarantine.html">lesson 5</a>.
 <script>
 renderQuiz("quiz", [
   {
-    q: "<pre><code>def test_apply_discount():\n    cart = Cart(items=[Item(price=100)])\n    cart.apply_discount(percent=10)</code></pre>The test ends there.",
+    q: "<pre><code>def test_discount_amount():\n    expected = discount_amount(price=100, percent=10)\n    assert discount_amount(price=100, percent=10) == expected</code></pre>",
     options: ["Tautological test", "Redundant test", "Dead test"],
     answer: 0,
-    why: "It runs the real code but checks nothing, so it passes whatever the discount does."
+    why: "It compares the function with itself. If discount_amount returned the wrong number, both sides would be wrong together and the test would still pass."
   },
   {
     q: "<pre><code>@pytest.mark.skip(reason=\"fix later\")\ndef test_vat_rounding(): ...</code></pre>The skip was added eight months ago and no ticket mentions it.",

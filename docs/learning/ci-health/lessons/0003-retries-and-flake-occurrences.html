@@ -14,12 +14,12 @@
 <p>In <a href="0002-junit-xml.html">lesson 2</a> you read a results file and said which tests passed and failed. One file is a single snapshot. A flaky test can't be seen in a single snapshot, because the definition needs two results.</p>
 
 <div class="win">
-<p><strong>What you'll be able to do:</strong> given the results of two attempts, sort every test into passed, real failure or flake occurrence. You'll also see a hole in the design that this lesson's research found, and the fix I recommend.</p>
+<p><strong>What you'll be able to do:</strong> given the results of two attempts, sort every test into passed, real failure or flake occurrence. You'll also see why the verdict script does the retry itself instead of leaving it to the test framework.</p>
 </div>
 
 <h2>What a flake occurrence is</h2>
 
-<p>Your glossary says a <strong>flaky test</strong> is one that both failed and passed on the same commit with no code change. Google's testing team uses the same definition (<a href="https://testing.googleblog.com/2016/05/flaky-tests-at-google-and-how-we.html">Flaky Tests at Google</a>). A <strong>flake occurrence</strong> is one CI run where that happened.</p>
+<p>The repo glossary says a <strong>flaky test</strong> is one that both failed and passed on the same commit with no code change. Google's testing team uses the same definition (<a href="https://testing.googleblog.com/2016/05/flaky-tests-at-google-and-how-we.html">Flaky Tests at Google</a>). A <strong>flake occurrence</strong> is one CI run where that happened.</p>
 
 <p>To see it you have to run the test again. That second go is a <strong>retry</strong>.</p>
 
@@ -51,29 +51,29 @@
   <text class="d-text" x="550" y="148" text-anchor="middle" font-weight="bold">Real failure</text>
   <text class="d-small" x="550" y="166" text-anchor="middle">never counted, build fails</text>
 </svg>
-<figcaption>This is the rule you set in Q8. A test that fails every attempt is broken code, and it never moves a test toward quarantine.</figcaption>
+<figcaption>This is the design's rule. A test that fails every attempt is broken code, and it never moves a test toward quarantine.</figcaption>
 </figure>
 
 <h2>Where the retry comes from</h2>
 
-<p>Most frameworks can retry by themselves. You add a flag such as <code>pytest --reruns 2</code> or <code>vitest --retry=2</code>, and the framework quietly reruns any test that fails. In Q28 you approved turning this on, and I told you the verdict script would then read the fail-then-pass out of the JUnit XML file.</p>
+<p>Most frameworks can retry by themselves. With <code>pytest --reruns 2</code> (from the pytest-rerunfailures plugin) or <code>vitest --retry=2</code>, the framework quietly reruns any test that fails. The obvious design would let the framework retry and have the verdict script read the fail-then-pass out of the JUnit XML file.</p>
 
-<h2>The hole</h2>
+<h2>Why that isn't enough</h2>
 
-<p>That only works if the framework writes the retry into the file. Lesson 2 ended by warning that this is the part where tools differ. Here is what I found when I checked.</p>
+<p>That only works if the framework writes the retry into the file. Lesson 2 ended by warning that this is the part where tools differ.</p>
 
 <table>
 <tr><th>Tool</th><th>What the file shows for fail-then-pass</th><th>Can the script see the flake?</th></tr>
 <tr><td>Maven, Gradle</td><td>A <code>&lt;flakyFailure&gt;</code> element inside the testcase (<a href="https://maven.apache.org/surefire/maven-surefire-plugin/examples/rerun-failing-tests.html">Surefire docs</a>)</td><td>Yes</td></tr>
-<tr><td>pytest with the reruns plugin</td><td>Reported to look like an ordinary pass. A fix that adds <code>flakyFailure</code> is proposed but I couldn't confirm it has been released (<a href="https://github.com/pytest-dev/pytest-rerunfailures/pull/380">pull request 380</a>)</td><td>No</td></tr>
-<tr><td>Vitest</td><td>One project reports the file carries no retry information, and I found nothing in Vitest's docs saying it does (<a href="https://github.com/JovieInc/Jovie/pull/18402">their workaround</a>)</td><td>No</td></tr>
+<tr><td>pytest with the reruns plugin</td><td>Reported to look like an ordinary pass. A fix that adds <code>flakyFailure</code> is proposed, and its release status is unconfirmed (<a href="https://github.com/pytest-dev/pytest-rerunfailures/pull/380">pull request 380</a>)</td><td>No</td></tr>
+<tr><td>Vitest</td><td>One project reports the file carries no retry information, and Vitest's docs don't say otherwise (<a href="https://github.com/JovieInc/Jovie/pull/18402">their workaround</a>)</td><td>No</td></tr>
 </table>
 
-<p>The pytest and Vitest rows come from other people's reports. I have not run the tools myself to check. If the reports are right, then in the two frameworks you're most likely to use, a flaky test that passes on retry leaves a file identical to one where it passed first time. The verdict script would record nothing.</p>
+<p>The pytest and Vitest rows rest on third-party reports, not on running the tools. Ticket #17 checks them against real files. If the reports are right, a flaky test that passes on a framework retry leaves a file identical to one where it passed first time, and the verdict script would record nothing.</p>
 
-<h2>The fix I recommend</h2>
+<h2>So the verdict script retries</h2>
 
-<p>You already decided in Q42 that the verdict script starts the test command itself. So it can also be the one that retries. It doesn't need the framework to describe the retry, because it ends up holding two ordinary files and compares them.</p>
+<p>The verdict script already starts the test command itself (<a href="0001-what-a-ci-run-is-made-of.html">lesson 1</a>), so it can also do the retry. It doesn't need the framework to describe the retry, because it ends up holding two ordinary files and compares them.</p>
 
 <figure>
 <svg viewBox="0 0 680 250" role="img" aria-label="The verdict script runs the tests, sees a failure, runs them again, and compares the two results files.">
@@ -104,9 +104,7 @@
 <figcaption>Both files use only the basics from lesson 2: a testcase that is empty or holds a failure. Every tool writes those the same way.</figcaption>
 </figure>
 
-<p>The cost is that the second attempt runs again. By default that would be the whole test command, which is slow in a big suite. It only happens when something failed, and a repo can supply a faster "rerun only the failures" command for its framework.</p>
-
-<p>This changes your Q28 answer, so it is your decision. I've put it to you in the chat as Q69.</p>
+<p>The cost is a second run whenever something fails. If the framework has a command that reruns only the failed tests, the repo records it in its CI doc and the script uses it. Otherwise the script reruns the whole test command. The framework's own automatic retries are switched off so the two don't overlap.</p>
 
 <h2>Check yourself</h2>
 <p>Questions 5 and 6 reach back to earlier lessons.</p>
@@ -116,7 +114,7 @@
 <h2>Read next</h2>
 <p><a href="https://testing.googleblog.com/2016/05/flaky-tests-at-google-and-how-we.html">Flaky Tests at Google and How We Mitigate Them</a> by John Micco. It is short, and it shows a very large engineering team landing on the same definition and the same "rerun to find out" approach.</p>
 
-<p>Anything unclear? Ask me in the chat. I'm your teacher for this.</p>
+<p>Anything unclear? Ask your coding agent. It can read these lessons, the skills and the spec, and answer follow-up questions.</p>
 
 <nav class="course">
 Previous: <a href="0002-junit-xml.html">lesson 2</a>. Reference: <a href="../reference/glossary.html">glossary</a>. Next: <a href="0004-the-verdict-script.html">lesson 4, the verdict script</a>.
