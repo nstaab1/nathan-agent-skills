@@ -5,7 +5,7 @@ description: "Audit a test suite for unneeded tests and file a ticket per findin
 
 A **test audit** reads a scope of a repo's tests, finds the **unneeded** ones and files tickets for them. An unneeded test is one whose removal or relocation would lose no verification of behaviour. Each finding is one of five kinds and carries the evidence its kind demands.
 
-Tickets are the audit's only output. Every test stays exactly as it is, and removal happens later, from a ticket, after someone has read the evidence. The one file the audit changes is production code during a mutation check, and the check restores it before moving on.
+Tickets are the audit's only output. Every test stays exactly as it is, and removal happens later, from a ticket, after someone has read the evidence. Besides tickets, the one thing the audit changes is production code during a mutation check, and the check restores it before moving on. On a local-file tracker, the ticket files are the only thing the audit leaves in the working tree. Commit them when the tracker doc says to commit tickets, and otherwise leave them for the user.
 
 Read these docs in the repo first:
 
@@ -25,7 +25,7 @@ Read these docs in the repo first:
 
 Each finding takes one kind. When two fit, take the one with the harder evidence. A mutation check or a skip marker beats reasoning.
 
-**Tautological.** Suspect a test whose expected value comes from the code under test, whose assertion checks a value the test itself gave a mock or stub, that compares a value with itself, or whose assertions sit in a callback that never runs or a `catch` that swallows them. Looks only make a suspect. A test with no assertion still fails when the code throws, so a smoke test that claims only "it runs" may be doing its job. The mutation check decides.
+**Tautological.** Suspect a test whose expected value comes from the code under test, whose assertion checks a value the test itself gave a mock or stub, that compares a value with itself, whose assertions sit in a callback that never runs or a `catch` that swallows them, or whose only assertions are on calls the code makes to its own methods, which check no outcome. Looks only make a suspect. A test with no assertion still fails when the code throws, so a smoke test that claims only "it runs" may be doing its job. The mutation check decides.
 
 **Dead.** The test carries a skip or disable marker in its framework's form, such as `it.skip`, `{ skip: true }`, `@pytest.mark.skip`, `@Disabled`, `t.Skip()` or `#[ignore]`, or it is commented out or excluded in the runner's config. A conditional skip is dead only when no environment the suite runs in, CI included, meets its condition. An open ticket that names the test, or an open ticket the marker links, tracks it. A marker that links a closed ticket leaves the test untracked.
 
@@ -45,13 +45,13 @@ Done when you hold the in-scope test files or tests, in the order you will audit
 
 ## 2. Leave flaky tests to their records
 
-List open tickets that carry the flaky label. Each one is a flaky-test record, titled with a test's identity as its JUnit XML results file gives it, classname plus name. Drop every in-scope test that matches a record title, and drop it when the match is uncertain too. The flaky-test work owns those tests.
+List open tickets that carry the flaky label. Each one is a flaky-test record, titled with a test's identity as its JUnit XML results file gives it, classname plus name. Drop every in-scope test that matches a record title, and drop it when the match is uncertain too. The flaky-test work owns those tests. A local-file tracker holds no flaky-test records, so skip this step there.
 
 Done when every in-scope test is kept, or dropped with the record it matched.
 
 ## 3. Get a green baseline
 
-Run `git status --porcelain`. When it prints anything, stop and ask the user to commit or stash their changes, since a mutation check needs a clean working tree. Then run the in-scope tests with the repo's test command, and work out the command that runs one test on its own. A test that fails here is a real failure. Report it and leave it out of the audit.
+Run `git status --porcelain`. The working tree is clean when it prints nothing outside a local-file tracker's ticket folder. When it isn't clean, stop and ask the user to commit or stash their changes, since a mutation check needs a clean working tree. Then run the in-scope tests with the repo's test command, and work out the command that runs one test on its own. A test that fails here is a real failure. Report it and leave it out of the audit.
 
 Done when the tree is clean, the in-scope tests pass, and you have run one test on its own.
 
@@ -65,11 +65,11 @@ Done when every in-scope test carries a kind or "keep", and every judgement find
 
 Run a mutation check on each suspect, as [references/mutation-check.md](references/mutation-check.md) says. A suspect that fails under the break is doing its job. Mark it "keep", or classify it again under another kind.
 
-Done when every tautological finding has a passing mutation check on record, and `git status --porcelain` prints nothing.
+Done when every tautological finding has a passing mutation check on record, and the working tree is clean.
 
 ## 6. Confirm each dead suspect is untracked
 
-For each dead suspect, read the marker's reason and the comments beside it for a ticket reference, and fetch any ticket it names. Then search open tickets for the test's name and for its file. When an open ticket turns up either way, the test is tracked, so mark it "keep". Otherwise record the marker line, when it was added according to `git log -S '<marker text>'` or `git blame`, and each search you ran.
+For each dead suspect, read the marker's reason and the comments beside it for a ticket reference, and fetch any ticket it names. Then search open tickets for the test's name and for its file. When an open ticket about this test turns up either way, the test is tracked, so mark it "keep". Otherwise record the marker line, when it was added according to `git log -S '<marker text>'` or `git blame`, and each search you ran.
 
 Done when every dead finding has its marker, its date and its empty searches on record.
 
@@ -85,5 +85,5 @@ Tell the user:
 
 - The scope audited and, for a slowest-first audit, the ranking, its source and the last file covered.
 - Tests dropped for a flaky-test record, and tests that failed the baseline.
-- Each ticket filed, with its link, kind, label and tests.
+- Each ticket filed, with its link or path, kind, label and tests. On a local-file tracker, say whether you committed the ticket files.
 - For each tautological finding, the break that left it passing, in one line.
