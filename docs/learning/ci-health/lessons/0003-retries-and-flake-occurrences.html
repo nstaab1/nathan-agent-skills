@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 3: Retries and flake occurrences</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+<div class="kicker">Lesson 3 of 7 · about 7 minutes</div>
+<h1>Retries and flake occurrences</h1>
+
+<p>In <a href="0002-junit-xml.html">lesson 2</a> you read a results file and said which tests passed and failed. One file is a single snapshot. A flaky test can't be seen in a single snapshot, because the definition needs two results.</p>
+
+<div class="win">
+<p><strong>What you'll be able to do:</strong> given the results of two attempts, sort every test into passed, real failure or flake occurrence. You'll also see a hole in the design that this lesson's research found, and the fix I recommend.</p>
+</div>
+
+<h2>What a flake occurrence is</h2>
+
+<p>Your glossary says a <strong>flaky test</strong> is one that both failed and passed on the same commit with no code change. Google's testing team uses the same definition (<a href="https://testing.googleblog.com/2016/05/flaky-tests-at-google-and-how-we.html">Flaky Tests at Google</a>). A <strong>flake occurrence</strong> is one CI run where that happened.</p>
+
+<p>To see it you have to run the test again. That second go is a <strong>retry</strong>.</p>
+
+<figure>
+<svg viewBox="0 0 680 210" role="img" aria-label="Two timelines. In the first a test fails then passes on retry, which is a flake occurrence. In the second it fails twice, which is a real failure.">
+  <text class="d-label" x="10" y="22">Same commit, same code</text>
+
+  <rect class="d-bad" x="10" y="36" width="150" height="50" rx="6"/>
+  <text class="d-text" x="85" y="58" text-anchor="middle">Attempt 1</text>
+  <text class="d-small" x="85" y="76" text-anchor="middle">failed</text>
+  <path class="d-line" d="M160 61 H215"/><path class="d-line" d="M208 55 L216 61 L208 67"/>
+  <rect class="d-good" x="220" y="36" width="150" height="50" rx="6"/>
+  <text class="d-text" x="295" y="58" text-anchor="middle">Attempt 2</text>
+  <text class="d-small" x="295" y="76" text-anchor="middle">passed</text>
+  <path class="d-line" d="M370 61 H425"/><path class="d-line" d="M418 55 L426 61 L418 67"/>
+  <rect class="d-box" x="430" y="36" width="240" height="50" rx="6"/>
+  <text class="d-text" x="550" y="58" text-anchor="middle" font-weight="bold">Flake occurrence</text>
+  <text class="d-small" x="550" y="76" text-anchor="middle">record it, build passes</text>
+
+  <rect class="d-bad" x="10" y="126" width="150" height="50" rx="6"/>
+  <text class="d-text" x="85" y="148" text-anchor="middle">Attempt 1</text>
+  <text class="d-small" x="85" y="166" text-anchor="middle">failed</text>
+  <path class="d-line" d="M160 151 H215"/><path class="d-line" d="M208 145 L216 151 L208 157"/>
+  <rect class="d-bad" x="220" y="126" width="150" height="50" rx="6"/>
+  <text class="d-text" x="295" y="148" text-anchor="middle">Attempt 2</text>
+  <text class="d-small" x="295" y="166" text-anchor="middle">failed</text>
+  <path class="d-line" d="M370 151 H425"/><path class="d-line" d="M418 145 L426 151 L418 157"/>
+  <rect class="d-bad" x="430" y="126" width="240" height="50" rx="6"/>
+  <text class="d-text" x="550" y="148" text-anchor="middle" font-weight="bold">Real failure</text>
+  <text class="d-small" x="550" y="166" text-anchor="middle">never counted, build fails</text>
+</svg>
+<figcaption>This is the rule you set in Q8. A test that fails every attempt is broken code, and it never moves a test toward quarantine.</figcaption>
+</figure>
+
+<h2>Where the retry comes from</h2>
+
+<p>Most frameworks can retry by themselves. You add a flag such as <code>pytest --reruns 2</code> or <code>vitest --retry=2</code>, and the framework quietly reruns any test that fails. In Q28 you approved turning this on, and I told you the verdict script would then read the fail-then-pass out of the JUnit XML file.</p>
+
+<h2>The hole</h2>
+
+<p>That only works if the framework writes the retry into the file. Lesson 2 ended by warning that this is the part where tools differ. Here is what I found when I checked.</p>
+
+<table>
+<tr><th>Tool</th><th>What the file shows for fail-then-pass</th><th>Can the script see the flake?</th></tr>
+<tr><td>Maven, Gradle</td><td>A <code>&lt;flakyFailure&gt;</code> element inside the testcase (<a href="https://maven.apache.org/surefire/maven-surefire-plugin/examples/rerun-failing-tests.html">Surefire docs</a>)</td><td>Yes</td></tr>
+<tr><td>pytest with the reruns plugin</td><td>Reported to look like an ordinary pass. A fix that adds <code>flakyFailure</code> is proposed but I couldn't confirm it has been released (<a href="https://github.com/pytest-dev/pytest-rerunfailures/pull/380">pull request 380</a>)</td><td>No</td></tr>
+<tr><td>Vitest</td><td>One project reports the file carries no retry information, and I found nothing in Vitest's docs saying it does (<a href="https://github.com/JovieInc/Jovie/pull/18402">their workaround</a>)</td><td>No</td></tr>
+</table>
+
+<p>The pytest and Vitest rows come from other people's reports. I have not run the tools myself to check. If the reports are right, then in the two frameworks you're most likely to use, a flaky test that passes on retry leaves a file identical to one where it passed first time. The verdict script would record nothing.</p>
+
+<h2>The fix I recommend</h2>
+
+<p>You already decided in Q42 that the verdict script starts the test command itself. So it can also be the one that retries. It doesn't need the framework to describe the retry, because it ends up holding two ordinary files and compares them.</p>
+
+<figure>
+<svg viewBox="0 0 680 250" role="img" aria-label="The verdict script runs the tests, sees a failure, runs them again, and compares the two results files.">
+  <rect class="d-box" x="10" y="95" width="150" height="60" rx="6"/>
+  <text class="d-text" x="85" y="121" text-anchor="middle" font-weight="bold">verdict script</text>
+  <text class="d-small" x="85" y="139" text-anchor="middle">starts the tests</text>
+
+  <path class="d-line" d="M160 110 L232 55"/>
+  <path class="d-line" d="M160 140 L232 195"/>
+
+  <rect class="d-bad" x="235" y="20" width="200" height="66" rx="6"/>
+  <text class="d-text" x="335" y="46" text-anchor="middle">Attempt 1 → file 1</text>
+  <text class="d-small" x="335" y="66" text-anchor="middle">test_checkout_total: failure</text>
+
+  <rect class="d-good" x="235" y="164" width="200" height="66" rx="6"/>
+  <text class="d-text" x="335" y="190" text-anchor="middle">Attempt 2 → file 2</text>
+  <text class="d-small" x="335" y="210" text-anchor="middle">test_checkout_total: empty</text>
+
+  <text class="d-small" x="335" y="130" text-anchor="middle">only happens if attempt 1 had a failure</text>
+
+  <path class="d-line" d="M435 53 L497 108"/>
+  <path class="d-line" d="M435 197 L497 142"/>
+
+  <rect class="d-box" x="500" y="95" width="170" height="60" rx="6"/>
+  <text class="d-text" x="585" y="121" text-anchor="middle" font-weight="bold">Compare</text>
+  <text class="d-small" x="585" y="139" text-anchor="middle">failed, then passed = flake</text>
+</svg>
+<figcaption>Both files use only the basics from lesson 2: a testcase that is empty or holds a failure. Every tool writes those the same way.</figcaption>
+</figure>
+
+<p>The cost is that the second attempt runs again. By default that would be the whole test command, which is slow in a big suite. It only happens when something failed, and a repo can supply a faster "rerun only the failures" command for its framework.</p>
+
+<p>This changes your Q28 answer, so it is your decision. I've put it to you in the chat as Q69.</p>
+
+<h2>Check yourself</h2>
+<p>Questions 5 and 6 reach back to earlier lessons.</p>
+
+<div class="quiz" id="quiz"></div>
+
+<h2>Read next</h2>
+<p><a href="https://testing.googleblog.com/2016/05/flaky-tests-at-google-and-how-we.html">Flaky Tests at Google and How We Mitigate Them</a> by John Micco. It is short, and it shows a very large engineering team landing on the same definition and the same "rerun to find out" approach.</p>
+
+<p>Anything unclear? Ask me in the chat. I'm your teacher for this.</p>
+
+<nav class="course">
+Previous: <a href="0002-junit-xml.html">lesson 2</a>. Reference: <a href="../reference/glossary.html">glossary</a>. Next: <a href="0004-the-verdict-script.html">lesson 4, the verdict script</a>.
+</nav>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    q: "On one commit, a test fails on attempt 1 and passes on attempt 2. What is that?",
+    options: ["One flake occurrence", "One real failure", "One skipped test"],
+    answer: 0,
+    why: "Failed and passed on the same commit, with no code change in between."
+  },
+  {
+    q: "On one commit, a test fails on attempt 1 and fails again on attempt 2. What is that?",
+    options: ["A real failure", "A flake occurrence", "A quarantined test"],
+    answer: 0,
+    why: "It never passed, so nothing suggests flakiness. It doesn't count toward quarantine."
+  },
+  {
+    q: "By the reports cited above, how does a retried-then-passed test look in pytest's file?",
+    options: ["Like a clean pass", "Like a hard failure", "Like a skipped test"],
+    answer: 0,
+    why: "The retry leaves no trace, which is why the script can't rely on the framework's own retries."
+  },
+  {
+    q: "Why would the verdict script do the retry itself?",
+    options: ["Two plain files show the flake", "Frameworks cannot retry tests at all", "GitHub blocks retries inside test steps"],
+    answer: 0,
+    why: "Comparing two ordinary files needs only the parts of JUnit XML that every tool writes the same way."
+  },
+  {
+    q: "From lesson 2: in file 2, the testcase for <code>test_checkout_total</code> is empty. What does that say?",
+    options: ["It passed that time", "It failed that time", "It skipped that time"],
+    answer: 0,
+    why: "An empty testcase is a pass."
+  },
+  {
+    q: "From lesson 1: the only problem in a run was one flake occurrence. Which exit code should the verdict script give?",
+    options: ["Zero, the build passes", "One, the build fails", "Two, the build retries"],
+    answer: 0,
+    why: "The test passed on retry, so the build is good. The script records the occurrence and exits 0."
+  }
+]);
+</script>
+</body>
+</html>

@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 5: The flaky-test record and quarantine</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+<div class="kicker">Lesson 5 of 7 · about 7 minutes</div>
+<h1>The flaky-test record and quarantine</h1>
+
+<p>In <a href="0004-the-verdict-script.html">lesson 4</a> the verdict script did two things with the tracker: it recorded flake occurrences, and it asked which tests were quarantined. This lesson follows one test through that tracker from its first flake to its fix.</p>
+
+<div class="win">
+<p><strong>What you'll be able to do:</strong> look at a test's history and say whether it should be quarantined, who acts next, and how it gets out.</p>
+</div>
+
+<h2>First, the point from lesson 3 again</h2>
+
+<p>You missed one question last time, so here it is as a picture. The same flaky test, seen two ways.</p>
+
+<table>
+<tr><th>pytest retries by itself: one file</th><th>The verdict script retries: two files</th></tr>
+<tr>
+<td><pre><code>&lt;testcase
+  name="test_checkout_total"/&gt;</code></pre>Empty, so it reads as a pass. The failure has vanished.</td>
+<td><pre><code>file 1:
+&lt;testcase name="test_checkout_total"&gt;
+  &lt;failure/&gt;
+&lt;/testcase&gt;
+
+file 2:
+&lt;testcase
+  name="test_checkout_total"/&gt;</code></pre>Failed, then passed. The flake is visible.</td>
+</tr>
+</table>
+
+<p>That difference is why the script does the retry.</p>
+
+<h2>The flaky-test record</h2>
+
+<p>A <strong>flaky-test record</strong> is one ticket in the issue tracker for one flaky test. The verdict script creates it the first time the test flakes.</p>
+
+<table>
+<tr><th>Part of the ticket</th><th>What it holds</th></tr>
+<tr><td>Title</td><td>The test identity from lesson 2: <code>flaky: tests.test_cart test_checkout_total</code></td></tr>
+<tr><td>Labels</td><td><code>flaky-test</code> and <code>ready-for-agent</code>. Later, perhaps <code>quarantined</code>.</td></tr>
+<tr><td>Comments</td><td>One per flake occurrence: the date, the branch, the job and a link to the run.</td></tr>
+</table>
+
+<p>Labels are short tags on a ticket that people and scripts can filter by (<a href="https://docs.github.com/en/issues/using-labels-and-milestones-to-track-work/managing-labels">GitHub docs on labels</a>). The design uses them as switches. Nothing in the test's code changes at any point.</p>
+
+<h2>One test, start to finish</h2>
+
+<figure>
+<svg viewBox="0 0 680 230" role="img" aria-label="Timeline of one flaky test: three flake occurrences on three pull requests, then quarantine, then a fix.">
+  <path class="d-line" d="M20 70 H660"/>
+
+  <rect class="d-bad" x="10" y="40" width="120" height="60" rx="6"/>
+  <text class="d-text" x="70" y="64" text-anchor="middle">Day 1</text>
+  <text class="d-small" x="70" y="84" text-anchor="middle">flakes on PR 41</text>
+
+  <rect class="d-bad" x="145" y="40" width="120" height="60" rx="6"/>
+  <text class="d-text" x="205" y="64" text-anchor="middle">Day 6</text>
+  <text class="d-small" x="205" y="84" text-anchor="middle">flakes on PR 44</text>
+
+  <rect class="d-bad" x="280" y="40" width="120" height="60" rx="6"/>
+  <text class="d-text" x="340" y="64" text-anchor="middle">Day 9</text>
+  <text class="d-small" x="340" y="84" text-anchor="middle">flakes on PR 47</text>
+
+  <rect class="d-box" x="415" y="40" width="120" height="60" rx="6"/>
+  <text class="d-text" x="475" y="64" text-anchor="middle">Day 10</text>
+  <text class="d-small" x="475" y="84" text-anchor="middle">agent's turn</text>
+
+  <rect class="d-good" x="550" y="40" width="120" height="60" rx="6"/>
+  <text class="d-text" x="610" y="64" text-anchor="middle">Day 12</text>
+  <text class="d-small" x="610" y="84" text-anchor="middle">you merge the fix</text>
+
+  <text class="d-label" x="10" y="130">What happens to the record</text>
+  <text class="d-small" x="70" y="156" text-anchor="middle">opened,</text>
+  <text class="d-small" x="70" y="172" text-anchor="middle">occurrence 1</text>
+  <text class="d-small" x="205" y="156" text-anchor="middle">comment,</text>
+  <text class="d-small" x="205" y="172" text-anchor="middle">occurrence 2</text>
+  <text class="d-small" x="340" y="156" text-anchor="middle">occurrence 3,</text>
+  <text class="d-small" x="340" y="172" text-anchor="middle">quarantined label</text>
+  <text class="d-small" x="475" y="156" text-anchor="middle">fix PR opened,</text>
+  <text class="d-small" x="475" y="172" text-anchor="middle">with proof</text>
+  <text class="d-small" x="610" y="156" text-anchor="middle">record closed,</text>
+  <text class="d-small" x="610" y="172" text-anchor="middle">quarantine over</text>
+
+  <text class="d-small" x="10" y="212">Builds on days 1, 6 and 9 all passed, because the test passed on the script's rerun each time.</text>
+</svg>
+<figcaption>Nobody clicked re-run, and nobody had to remember the test was flaky.</figcaption>
+</figure>
+
+<h2>The quarantine rule</h2>
+
+<p><strong>Quarantine</strong> means the test still runs but cannot fail the build. On the third occurrence the verdict script adds the <code>quarantined</code> label, but only when all of these hold:</p>
+
+<table>
+<tr><th>Condition</th><th>What it protects against</th></tr>
+<tr><td>Three flake occurrences</td><td>A single blip, such as one slow machine.</td></tr>
+<tr><td>All within 30 days</td><td>Three flakes spread over two years, which is not a pattern.</td></tr>
+<tr><td>Across at least two branches</td><td>One pull request whose own change made the test unreliable. That is the PR's bug.</td></tr>
+<tr><td>Under the cap, 5% of the suite by default</td><td>A bad week quietly switching off a large part of your tests.</td></tr>
+</table>
+
+<h2>Who acts, and how it ends</h2>
+
+<p>The <strong>scheduled agent</strong> wakes on a timer and looks at open flaky-test records, quarantined ones first. It opens at most three fix pull requests per run. Each must show the test passing 20 times in a row. The agent never merges. You review and merge.</p>
+
+<table>
+<tr><th>Ending</th><th>What happens</th></tr>
+<tr><td>Fixed</td><td>Merging the fix closes the record, which ends quarantine.</td></tr>
+<tr><td>Agent can't fix it</td><td>It writes up what it found and relabels the record <code>ready-for-human</code>.</td></tr>
+<tr><td>Still not fixed near day 30</td><td>Seven days before expiry the record goes to a human. At day 30 the label comes off and the test can fail builds again.</td></tr>
+<tr><td>Fixed, then flakes again later</td><td>The old record reopens with its history. Occurrences from before the fix don't count toward the new three.</td></tr>
+</table>
+
+<h2>Check yourself</h2>
+
+<div class="quiz" id="quiz"></div>
+
+<h2>Read next</h2>
+<p>The "Flaky tests" section of <code>GLOSSARY.md</code> in the skills repo. It is five short definitions, and each should now match a picture in your head.</p>
+
+<p>Anything unclear? Ask me in the chat. I'm your teacher for this.</p>
+
+<nav class="course">
+Previous: <a href="0004-the-verdict-script.html">lesson 4</a>. Reference: <a href="../reference/glossary.html">glossary</a>. Next: <a href="0006-tautological-tests-and-the-mutation-check.html">lesson 6, tautological tests and the mutation check</a>.
+</nav>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    q: "From lesson 3: pytest retries a test by itself and the retry passes. What does its single results file show for that test?",
+    options: ["An empty testcase", "A failure element", "A skipped element"],
+    answer: 0,
+    why: "It reads as a clean pass. The earlier failure leaves no trace, which is why the script retries and keeps two files."
+  },
+  {
+    q: "A test has three flake occurrences in one week, all on the same pull request branch. Is it quarantined?",
+    options: ["No, only one branch", "Yes, three is enough", "No, it needs five"],
+    answer: 0,
+    why: "The three must span at least two branches. One branch alone suggests that PR's change is the cause."
+  },
+  {
+    q: "A test flakes on day 1, day 20 and day 45, each on a different branch. Is it quarantined on day 45?",
+    options: ["No, only two count", "Yes, three have happened", "No, branches must match"],
+    answer: 0,
+    why: "Only occurrences in the last 30 days count. On day 45 that is day 20 and day 45."
+  },
+  {
+    q: "How does a test enter quarantine?",
+    options: ["A label on its record", "A marker in its code", "A commit to main branch"],
+    answer: 0,
+    why: "Quarantine is a tracker label. No code changes, so it takes effect on every branch at once."
+  },
+  {
+    q: "The scheduled agent's fix pull request is green. What happens next?",
+    options: ["A human reviews and merges", "The agent merges it alone", "The label merges it automatically"],
+    answer: 0,
+    why: "The agent opens fix PRs with proof and never merges them."
+  },
+  {
+    q: "A quarantined test is still not fixed after 30 days. What happens?",
+    options: ["It blocks builds again", "It stays quarantined forever", "It gets deleted automatically"],
+    answer: 0,
+    why: "Quarantine expires so it can't become a permanent home. A human is warned seven days before."
+  },
+  {
+    q: "A test was fixed and its record closed. A month later it flakes again. What happens?",
+    options: ["Its old record reopens", "A new record opens", "No record gets made"],
+    answer: 0,
+    why: "The earlier diagnosis and fix are the most useful context for the next attempt."
+  }
+]);
+</script>
+</body>
+</html>

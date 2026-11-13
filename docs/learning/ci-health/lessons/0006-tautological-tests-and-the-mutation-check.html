@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 6: Tautological tests and the mutation check</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+<div class="kicker">Lesson 6 of 7 · about 7 minutes</div>
+<h1>Tautological tests and the mutation check</h1>
+
+<p>Lessons 1 to 5 covered flaky tests. This one covers the other half of your design, the <strong>test audit</strong>, which finds tests that cost CI time and protect nothing.</p>
+
+<div class="win">
+<p><strong>What you'll be able to do:</strong> look at a test and name which of the five kinds of unneeded test it is, and say how the audit proves a tautological one.</p>
+</div>
+
+<h2>The test from your baseline</h2>
+
+<p>Before lesson 1 I showed you this and asked what was wrong with it:</p>
+
+<pre><code>def test_discount():
+    cart = Mock()
+    cart.total.return_value = 90
+    assert cart.total() == 90</code></pre>
+
+<p>A <strong>mock</strong> is a stand-in object. It has no behaviour of its own and gives back whatever you tell it to. Read the test with that in mind:</p>
+
+<table>
+<tr><th>Line</th><th>What it does</th></tr>
+<tr><td><code>cart = Mock()</code></td><td>Makes a stand-in cart. The real cart is never created.</td></tr>
+<tr><td><code>cart.total.return_value = 90</code></td><td>Tells the stand-in: "when asked for the total, say 90".</td></tr>
+<tr><td><code>assert cart.total() == 90</code></td><td>Asks the stand-in for the total and checks it said 90.</td></tr>
+</table>
+
+<figure>
+<svg viewBox="0 0 680 190" role="img" aria-label="The test talks only to a mock, telling it to say 90 and then checking it says 90. The real discount code is never touched.">
+  <rect class="d-box" x="10" y="55" width="150" height="70" rx="6"/>
+  <text class="d-text" x="85" y="95" text-anchor="middle" font-weight="bold">The test</text>
+
+  <path class="d-line" d="M160 75 H275"/><path class="d-line" d="M268 69 L276 75 L268 81"/>
+  <text class="d-small" x="218" y="67" text-anchor="middle">"say 90"</text>
+  <path class="d-line" d="M280 107 H165"/><path class="d-line" d="M172 101 L164 107 L172 113"/>
+  <text class="d-small" x="222" y="125" text-anchor="middle">"90"</text>
+
+  <rect class="d-box" x="280" y="55" width="150" height="70" rx="6"/>
+  <text class="d-text" x="355" y="87" text-anchor="middle" font-weight="bold">Mock cart</text>
+  <text class="d-small" x="355" y="107" text-anchor="middle">a stand-in</text>
+
+  <rect class="d-skip" x="500" y="55" width="170" height="70" rx="6"/>
+  <text class="d-text" x="585" y="87" text-anchor="middle">Real discount code</text>
+  <text class="d-small" x="585" y="107" text-anchor="middle">never runs</text>
+</svg>
+<figcaption>The test checks that 90 is 90. You could delete the entire discount feature and it would still pass.</figcaption>
+</figure>
+
+<p>Your glossary calls this a <strong>tautological test</strong>: a test that still passes when the behaviour it claims to verify is broken.</p>
+
+<h2>Proving it: the mutation check</h2>
+
+<p>"Looks tautological" is an opinion. In Q4 you asked for proof. The <strong>mutation check</strong> is the proof: break the real code on purpose, run the suspect test, and see what happens.</p>
+
+<figure>
+<svg viewBox="0 0 680 210" role="img" aria-label="Break the real code, run the suspect test. If it still passes the test is proven tautological. If it fails the test is doing its job.">
+  <rect class="d-box" x="10" y="75" width="170" height="60" rx="6"/>
+  <text class="d-text" x="95" y="101" text-anchor="middle">Break the real code</text>
+  <text class="d-small" x="95" y="119" text-anchor="middle">discount 10% → 0%</text>
+  <path class="d-line" d="M180 105 H225"/><path class="d-line" d="M218 99 L226 105 L218 111"/>
+
+  <rect class="d-box" x="230" y="75" width="170" height="60" rx="6"/>
+  <text class="d-text" x="315" y="101" text-anchor="middle">Run the suspect test</text>
+  <text class="d-small" x="315" y="119" text-anchor="middle">only that one</text>
+
+  <path class="d-line" d="M400 95 L447 50"/>
+  <path class="d-line" d="M400 115 L447 160"/>
+
+  <rect class="d-bad" x="450" y="15" width="220" height="66" rx="6"/>
+  <text class="d-text" x="560" y="42" text-anchor="middle" font-weight="bold">Still passes</text>
+  <text class="d-small" x="560" y="62" text-anchor="middle">proven tautological</text>
+
+  <rect class="d-good" x="450" y="129" width="220" height="66" rx="6"/>
+  <text class="d-text" x="560" y="156" text-anchor="middle" font-weight="bold">Now fails</text>
+  <text class="d-small" x="560" y="176" text-anchor="middle">the test is doing its job</text>
+</svg>
+<figcaption>Afterwards the audit puts the real code back exactly as it was.</figcaption>
+</figure>
+
+<p>The idea comes from mutation testing, where a tool makes small deliberate breakages and checks whether any test notices. A breakage no test catches is said to be "alive" (<a href="https://testing.googleblog.com/2021/04">Google Testing Blog, April 2021</a>; <a href="https://research.google/pubs/pub50658/">Practical Mutation Testing at Scale</a>). Full mutation testing breaks code everywhere and is slow. Your design uses the same trick on one suspect test at a time.</p>
+
+<p>For contrast, here is a version that would fail the moment the discount broke, because it runs the real cart:</p>
+
+<pre><code>def test_discount():
+    cart = Cart(items=[Item(price=100)])
+    cart.apply_discount(percent=10)
+    assert cart.total() == 90</code></pre>
+
+<h2>The five kinds of unneeded test</h2>
+
+<p>An <strong>unneeded test</strong> is one whose removal or relocation would lose no verification of behaviour. The audit sorts every finding into one of five kinds.</p>
+
+<table>
+<tr><th>Kind</th><th>What it is</th><th>Example</th></tr>
+<tr><td><strong>Tautological</strong></td><td>Still passes when the behaviour is broken.</td><td>The mock test above.</td></tr>
+<tr><td><strong>Redundant</strong></td><td>Checks a behaviour another test already checks the same way.</td><td>Two tests that both add a 10% discount and expect 90.</td></tr>
+<tr><td><strong>Implementation-coupled</strong></td><td>Fails when code is tidied up with no change in behaviour.</td><td>A test that insists a private helper was called exactly once.</td></tr>
+<tr><td><strong>Misplaced</strong></td><td>Checks at an expensive level what a cheap level already covers.</td><td>Starting a browser to check discount arithmetic.</td></tr>
+<tr><td><strong>Dead</strong></td><td>Skipped or disabled with no ticket tracking its return.</td><td>A test marked "skip" eight months ago.</td></tr>
+</table>
+
+<h2>What the audit does with a finding</h2>
+
+<table>
+<tr><th>Kind</th><th>Evidence</th><th>Ticket label</th></tr>
+<tr><td>Tautological</td><td>A mutation check</td><td><code>ready-for-agent</code></td></tr>
+<tr><td>Dead</td><td>The skip marker itself</td><td><code>ready-for-agent</code></td></tr>
+<tr><td>Redundant, implementation-coupled, misplaced</td><td>Written reasoning</td><td><code>needs-triage</code>, so you confirm first</td></tr>
+</table>
+
+<p>The audit only files tickets. It never deletes a test in the same run that judged it. The review skill, <code>ns-code-review</code>, uses the same five kinds to flag unneeded tests in a diff before they are merged.</p>
+
+<h2>Check yourself</h2>
+<p>Questions 1 to 5 each show a test. Name its kind. The last question reaches back to lesson 5.</p>
+
+<div class="quiz" id="quiz"></div>
+
+<h2>Read next</h2>
+<p>The "Test audit" section of <code>GLOSSARY.md</code> in the skills repo, then the abstract of <a href="https://research.google/pubs/pub50658/">Practical Mutation Testing at Scale</a> if you want to see where the mutation idea comes from.</p>
+
+<p>Anything unclear? Ask me in the chat. I'm your teacher for this.</p>
+
+<nav class="course">
+Previous: <a href="0005-the-flaky-test-record-and-quarantine.html">lesson 5</a>. Reference: <a href="../reference/glossary.html">glossary</a>. Next: <a href="0007-the-four-pieces-together.html">lesson 7, the four pieces together</a>.
+</nav>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    q: "<pre><code>def test_apply_discount():\n    cart = Cart(items=[Item(price=100)])\n    cart.apply_discount(percent=10)</code></pre>The test ends there.",
+    options: ["Tautological test", "Redundant test", "Dead test"],
+    answer: 0,
+    why: "It runs the real code but checks nothing, so it passes whatever the discount does."
+  },
+  {
+    q: "<pre><code>@pytest.mark.skip(reason=\"fix later\")\ndef test_vat_rounding(): ...</code></pre>The skip was added eight months ago and no ticket mentions it.",
+    options: ["Dead test", "Misplaced test", "Tautological test"],
+    answer: 0,
+    why: "It never runs and nothing tracks bringing it back."
+  },
+  {
+    q: "<code>test_total_with_discount</code> and <code>test_discounted_total</code> both build the same cart, apply 10%, and expect 90.",
+    options: ["Redundant test", "Tautological test", "Misplaced test"],
+    answer: 0,
+    why: "The same behaviour is checked twice through the same interface. One of them adds nothing."
+  },
+  {
+    q: "A test starts the whole app in a browser to confirm that 10% off 100 is 90. A fast unit test already checks that sum.",
+    options: ["Misplaced test", "Redundant test", "Dead test"],
+    answer: 0,
+    why: "It checks at an expensive level what a cheap level already covers. This kind costs the most CI time."
+  },
+  {
+    q: "A test insists that the private helper <code>_recalculate</code> was called exactly once. Someone tidies the code so the helper is gone. Totals are unchanged, and the test fails.",
+    options: ["Implementation-coupled test", "Tautological test", "Redundant test"],
+    answer: 0,
+    why: "It broke on a refactor that changed no behaviour. It was checking how the code works inside."
+  },
+  {
+    q: "You break the discount code on purpose and the suspect test still passes. What does that tell you?",
+    options: ["The finding is proven", "The finding is wrong", "The check is broken"],
+    answer: 0,
+    why: "A test that passes with the behaviour broken is tautological by definition."
+  },
+  {
+    q: "Which findings does the audit label <code>ready-for-agent</code>?",
+    options: ["Tautological and dead tests", "Redundant and misplaced tests", "Every kind of finding"],
+    answer: 0,
+    why: "Those two have hard evidence. The other three are judgment calls, so they wait for you as needs-triage."
+  },
+  {
+    q: "From lesson 5: a test flakes twice on branch A and once on branch B within ten days, and the cap isn't reached. Is it quarantined?",
+    options: ["Yes, all conditions hold", "No, needs three branches", "No, needs thirty days"],
+    answer: 0,
+    why: "Three occurrences, inside 30 days, across at least two branches."
+  }
+]);
+</script>
+</body>
+</html>

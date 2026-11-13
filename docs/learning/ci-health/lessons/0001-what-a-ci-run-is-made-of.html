@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 1: What a CI run is made of</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+<div class="kicker">Lesson 1 of 7 · about 5 minutes</div>
+<h1>What a CI run is made of</h1>
+
+<p>You described CI as "a list of jobs that fire to verify the code changes". That is right. This lesson adds the two layers under a job, and the one number that decides whether you get a green tick.</p>
+
+<div class="win">
+<p><strong>What you'll be able to do:</strong> look at any failed build and say which step failed and why the whole build went red. The verdict script in your design works entirely through this mechanism.</p>
+</div>
+
+<h2>Four parts</h2>
+
+<figure>
+<svg viewBox="0 0 680 330" role="img" aria-label="A run containing two jobs. Each job executes on its own runner and holds a list of steps.">
+  <rect class="d-outer" x="10" y="30" width="660" height="290" rx="6"/>
+  <text class="d-label" x="22" y="22">Run · one commit</text>
+
+  <rect class="d-box" x="30" y="60" width="295" height="240" rx="6"/>
+  <text class="d-text" x="46" y="86" font-weight="bold">Job: lint</text>
+  <text class="d-small" x="46" y="104">on runner A, a fresh machine</text>
+  <rect class="d-good" x="46" y="120" width="263" height="34" rx="4"/>
+  <text class="d-text" x="58" y="142">Step 1 · check out the repo</text>
+  <rect class="d-good" x="46" y="162" width="263" height="34" rx="4"/>
+  <text class="d-text" x="58" y="184">Step 2 · install</text>
+  <rect class="d-good" x="46" y="204" width="263" height="34" rx="4"/>
+  <text class="d-text" x="58" y="226">Step 3 · run the linter</text>
+
+  <rect class="d-box" x="355" y="60" width="295" height="240" rx="6"/>
+  <text class="d-text" x="371" y="86" font-weight="bold">Job: test</text>
+  <text class="d-small" x="371" y="104">on runner B, a different fresh machine</text>
+  <rect class="d-good" x="371" y="120" width="263" height="34" rx="4"/>
+  <text class="d-text" x="383" y="142">Step 1 · check out the repo</text>
+  <rect class="d-good" x="371" y="162" width="263" height="34" rx="4"/>
+  <text class="d-text" x="383" y="184">Step 2 · install</text>
+  <rect class="d-good" x="371" y="204" width="263" height="34" rx="4"/>
+  <text class="d-text" x="383" y="226">Step 3 · run the tests</text>
+  <rect class="d-good" x="371" y="246" width="263" height="34" rx="4"/>
+  <text class="d-text" x="383" y="268">Step 4 · upload the report</text>
+</svg>
+<figcaption>One run for one commit. The two jobs execute side by side, each on its own machine. Inside a job, steps go one after another.</figcaption>
+</figure>
+
+<table>
+<tr><th>Part</th><th>What it is</th></tr>
+<tr><td><strong>Run</strong></td><td>One execution of the pipeline for one commit.</td></tr>
+<tr><td><strong>Job</strong></td><td>A list of steps that go in order on one runner.</td></tr>
+<tr><td><strong>Step</strong></td><td>One command, such as <code>pytest</code>.</td></tr>
+<tr><td><strong>Runner</strong></td><td>A fresh machine for one job. It has a copy of your repo and nothing else, and it is thrown away afterwards.</td></tr>
+</table>
+
+<p>These are GitHub's words for the parts. GitLab and others use slightly different names for the same shape. Source: <a href="https://docs.github.com/en/actions/learn-github-actions/understanding-github-actions">Understanding GitHub Actions</a>.</p>
+
+<h2>The exit code decides everything</h2>
+
+<p>When a command finishes it hands back a number called its <strong>exit code</strong>. CI reads only that number.</p>
+
+<table>
+<tr><th>Exit code</th><th>CI's reading</th></tr>
+<tr><td><code>0</code></td><td>The step passed.</td></tr>
+<tr><td>anything else</td><td>The step failed.</td></tr>
+</table>
+
+<p>CI does not read the test output or count failures. <code>pytest</code> exits with 1 when a test fails, and that 1 is the whole message. Source: <a href="https://docs.github.com/en/actions/how-tos/create-and-publish-actions/set-exit-codes">Setting exit codes for actions</a>.</p>
+
+<figure>
+<svg viewBox="0 0 680 250" role="img" aria-label="The test job where step 3 exits with code 1. Step 4 is skipped, the job fails, and the pull request shows a red cross.">
+  <rect class="d-box" x="10" y="10" width="330" height="230" rx="6"/>
+  <text class="d-text" x="26" y="36" font-weight="bold">Job: test</text>
+  <rect class="d-good" x="26" y="50" width="298" height="34" rx="4"/>
+  <text class="d-text" x="38" y="72">Step 1 · check out</text>
+  <text class="d-small" x="262" y="72">exit 0</text>
+  <rect class="d-good" x="26" y="92" width="298" height="34" rx="4"/>
+  <text class="d-text" x="38" y="114">Step 2 · install</text>
+  <text class="d-small" x="262" y="114">exit 0</text>
+  <rect class="d-bad" x="26" y="134" width="298" height="34" rx="4"/>
+  <text class="d-text" x="38" y="156">Step 3 · run the tests</text>
+  <text class="d-small" x="262" y="156">exit 1</text>
+  <rect class="d-skip" x="26" y="176" width="298" height="34" rx="4"/>
+  <text class="d-small" x="38" y="198">Step 4 · upload the report</text>
+  <text class="d-small" x="254" y="198">skipped</text>
+
+  <path class="d-line" d="M340 151 H395"/>
+  <path class="d-line" d="M388 145 L396 151 L388 157"/>
+  <rect class="d-bad" x="400" y="126" width="120" height="50" rx="6"/>
+  <text class="d-text" x="460" y="156" text-anchor="middle">Job fails</text>
+  <path class="d-line" d="M520 151 H555"/>
+  <path class="d-line" d="M548 145 L556 151 L548 157"/>
+  <rect class="d-bad" x="560" y="126" width="110" height="50" rx="6"/>
+  <text class="d-text" x="615" y="156" text-anchor="middle">PR: red ✗</text>
+</svg>
+<figcaption>One non-zero exit code fails the step. The failed step fails the job and the steps after it are skipped. One failed job turns the pull request red.</figcaption>
+</figure>
+
+<h2>Why this matters for your design</h2>
+
+<p>The <strong>verdict script</strong> is a command in the test job. It has one way to say "this build should fail": exit with a non-zero code. It has one way to say "let it through": exit with 0. Quarantine works because the script can see a failed test and still exit 0.</p>
+
+<p>The second diagram also shows a trap. If the tests are their own step and they fail, a later step is skipped by default. A verdict script placed after them would never get a turn. That is the reason the design has the script wrap the test command, as you approved in Q42:</p>
+
+<pre><code>node verdict.mjs -- pytest --junitxml=results.xml</code></pre>
+
+<p>The script starts <code>pytest</code> itself, waits, looks at what happened, and then chooses the exit code for the step.</p>
+
+<h2>Check yourself</h2>
+<p>Answer from memory before scrolling back up.</p>
+
+<div class="quiz" id="quiz"></div>
+
+<h2>Read next</h2>
+<p>The best single source for this lesson is GitHub's own <a href="https://docs.github.com/en/actions/learn-github-actions/understanding-github-actions">Understanding GitHub Actions</a>. Read "The components of GitHub Actions". It takes about five minutes.</p>
+
+<p>Anything unclear? Ask me in the chat. I'm your teacher for this, and a question now is cheaper than a wrong assumption in lesson 4.</p>
+
+<nav class="course">
+Reference: <a href="../reference/glossary.html">glossary</a>. Next: <a href="0002-junit-xml.html">lesson 2, JUnit XML</a>.
+</nav>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    q: "A job has four steps. Step two exits with code 1. What happens by default?",
+    options: ["The job fails and stops there", "The job passes and carries on", "The job waits and tries again"],
+    answer: 0,
+    why: "A non-zero exit fails the step, the job fails, and later steps are skipped."
+  },
+  {
+    q: "Which part is a fresh machine that is thrown away after one job?",
+    options: ["The runner machine", "The workflow file", "The single step"],
+    answer: 0,
+    why: "Each job gets its own runner, which starts with a copy of the repo and nothing else."
+  },
+  {
+    q: "How does the verdict script tell CI that the build should fail?",
+    options: ["It exits with a non-zero code", "It posts a red tick itself", "It deletes the failed test file"],
+    answer: 0,
+    why: "The exit code is the only thing CI reads from a step."
+  },
+  {
+    q: "A step is written <code>pytest || true</code> and pytest crashes with code 1. What does CI see?",
+    options: ["Zero, so the step passes", "One, so the step fails", "Two, so the step retries"],
+    answer: 0,
+    why: "\"|| true\" replaces any failure with success, which hides a crash. That is why the design wraps the command instead."
+  }
+]);
+</script>
+</body>
+</html>

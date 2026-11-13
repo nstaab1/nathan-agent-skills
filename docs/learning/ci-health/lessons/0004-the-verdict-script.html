@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 4: The verdict script</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+<div class="kicker">Lesson 4 of 7 · about 7 minutes</div>
+<h1>The verdict script</h1>
+
+<p>You now have every piece the verdict script uses: the exit code from <a href="0001-what-a-ci-run-is-made-of.html">lesson 1</a>, the results file from <a href="0002-junit-xml.html">lesson 2</a>, and the two-attempt comparison from <a href="0003-retries-and-flake-occurrences.html">lesson 3</a>. This lesson puts them in order.</p>
+
+<div class="win">
+<p><strong>What you'll be able to do:</strong> take any situation in a test job and say what the verdict script does: which exit code it gives, and whether it records anything.</p>
+</div>
+
+<h2>Its two jobs</h2>
+
+<p>Your glossary defines the <strong>verdict script</strong> as the script that runs a CI job's tests, retries the failures, records flake occurrences and decides whether the build passes, ignoring failures of quarantined tests. That is two outputs:</p>
+
+<table>
+<tr><th>Output</th><th>Where it goes</th></tr>
+<tr><td>An <strong>exit code</strong></td><td>To CI, which turns it into a green tick or red cross.</td></tr>
+<tr><td><strong>Flake occurrences</strong></td><td>To the issue tracker, as a comment on that test's flaky-test record.</td></tr>
+</table>
+
+<h2>What it does, in order</h2>
+
+<figure>
+<svg viewBox="0 0 680 440" role="img" aria-label="Flowchart of the verdict script. It runs the tests, checks for failures, reruns the failures, compares the two attempts, records flake occurrences, ignores quarantined tests, and chooses an exit code.">
+  <rect class="d-box" x="215" y="10" width="250" height="40" rx="6"/>
+  <text class="d-text" x="340" y="35" text-anchor="middle">1 · Run the tests</text>
+  <path class="d-line" d="M340 50 V78"/>
+
+  <rect class="d-box" x="215" y="78" width="250" height="44" rx="6"/>
+  <text class="d-text" x="340" y="105" text-anchor="middle">2 · Any failed test in the file?</text>
+  <path class="d-line" d="M465 100 H503"/>
+  <text class="d-small" x="476" y="93">no</text>
+
+  <rect class="d-box" x="503" y="78" width="167" height="44" rx="6"/>
+  <text class="d-text" x="586" y="105" text-anchor="middle">Command exited 0?</text>
+  <path class="d-line" d="M542 122 V150"/>
+  <path class="d-line" d="M631 122 V150"/>
+  <rect class="d-good" x="503" y="150" width="78" height="44" rx="6"/>
+  <text class="d-small" x="542" y="167" text-anchor="middle">yes</text>
+  <text class="d-text" x="542" y="185" text-anchor="middle">Exit 0</text>
+  <rect class="d-bad" x="592" y="150" width="78" height="44" rx="6"/>
+  <text class="d-small" x="631" y="167" text-anchor="middle">no, a crash</text>
+  <text class="d-text" x="631" y="185" text-anchor="middle">Exit 1</text>
+
+  <path class="d-line" d="M340 122 V153"/>
+  <text class="d-small" x="348" y="142">yes</text>
+  <rect class="d-box" x="215" y="153" width="250" height="44" rx="6"/>
+  <text class="d-text" x="340" y="180" text-anchor="middle">3 · Run the failures again</text>
+  <path class="d-line" d="M340 197 V225"/>
+
+  <rect class="d-box" x="215" y="225" width="250" height="44" rx="6"/>
+  <text class="d-text" x="340" y="252" text-anchor="middle">4 · Compare, test by test</text>
+  <path class="d-line" d="M215 247 H130 V293"/>
+  <path class="d-line" d="M465 247 H550 V293"/>
+
+  <rect class="d-good" x="20" y="293" width="220" height="50" rx="6"/>
+  <text class="d-text" x="130" y="314" text-anchor="middle">Passed this time</text>
+  <text class="d-small" x="130" y="332" text-anchor="middle">record a flake occurrence</text>
+
+  <rect class="d-box" x="440" y="293" width="220" height="50" rx="6"/>
+  <text class="d-text" x="550" y="314" text-anchor="middle">Failed again</text>
+  <text class="d-small" x="550" y="332" text-anchor="middle">is the test quarantined?</text>
+  <path class="d-line" d="M492 343 V378"/>
+  <path class="d-line" d="M607 343 V378"/>
+  <rect class="d-box" x="440" y="378" width="105" height="48" rx="6"/>
+  <text class="d-small" x="492" y="396" text-anchor="middle">yes</text>
+  <text class="d-text" x="492" y="414" text-anchor="middle">Ignore it</text>
+  <rect class="d-bad" x="555" y="378" width="105" height="48" rx="6"/>
+  <text class="d-small" x="607" y="396" text-anchor="middle">no</text>
+  <text class="d-text" x="607" y="414" text-anchor="middle">Exit 1</text>
+
+  <path class="d-line" d="M130 343 V378"/>
+  <path class="d-line" d="M440 402 H400"/>
+  <rect class="d-good" x="20" y="378" width="380" height="48" rx="6"/>
+  <text class="d-text" x="210" y="399" text-anchor="middle">5 · Nothing left that must fail the build</text>
+  <text class="d-text" x="210" y="417" text-anchor="middle">Exit 0</text>
+</svg>
+<figcaption>Red boxes are the only ways the build fails: a crash, or a test that failed twice and is not quarantined.</figcaption>
+</figure>
+
+<h2>The steps in words</h2>
+
+<p><strong>1. Run the tests.</strong> The script starts the test command itself and keeps two things: the command's exit code and results file 1.</p>
+
+<p><strong>2. Check for failures.</strong> If file 1 has no failed test, the script looks at the command's own exit code. Zero means a clean run. Non-zero with no failed test means the test command crashed before it could report, so the build fails. This is the case <code>|| true</code> would have hidden.</p>
+
+<p><strong>3. Run the failures again.</strong> This is your Q69 decision. If the repo has a "rerun only the failures" command for its framework, the script uses it. If not, it reruns the whole test command. Either way it gets results file 2.</p>
+
+<p><strong>4. Compare, test by test.</strong> For each test that failed in attempt 1:</p>
+<table>
+<tr><th>In attempt 2 it…</th><th>So it is…</th><th>The script…</th></tr>
+<tr><td>passed</td><td>a flake occurrence</td><td>records it on the test's flaky-test record and adds a line to the run summary</td></tr>
+<tr><td>failed, and is quarantined</td><td>a known flaky test</td><td>ignores it</td></tr>
+<tr><td>failed, and is not quarantined</td><td>a real failure</td><td>fails the build</td></tr>
+</table>
+
+<p><strong>5. Give the verdict.</strong> If nothing is left that must fail the build, exit 0.</p>
+
+<h2>Where the quarantine list comes from</h2>
+
+<p>In step 4 the script asks the issue tracker which tests carry the quarantine label. If the tracker can't be reached, the script treats the list as empty (your Q33 decision). An outage can therefore make a build stricter, and can never let a real failure through.</p>
+
+<p>One consequence to be clear about: while a test is quarantined, the script can't tell "flaked twice" from "is truly broken now". Both are ignored. The 30-day expiry and the cap on quarantined tests exist to limit that blind spot. Lesson 5 covers them.</p>
+
+<h2>Check yourself</h2>
+<p>Each question is a situation. Every one has the same three choices, so you have to work it out from the flowchart in your head.</p>
+
+<div class="quiz" id="quiz"></div>
+
+<h2>Read next</h2>
+<p>Your own decision record, <code>docs/adr/0001-quarantine-is-a-tracker-label.md</code> in the skills repo. It is one page, and after this lesson every sentence in it should make sense. If one doesn't, that is the question to ask me.</p>
+
+<p>Anything unclear? Ask me in the chat. I'm your teacher for this.</p>
+
+<nav class="course">
+Previous: <a href="0003-retries-and-flake-occurrences.html">lesson 3</a>. Reference: <a href="../reference/glossary.html">glossary</a>. Next: <a href="0005-the-flaky-test-record-and-quarantine.html">lesson 5, the flaky-test record and quarantine</a>.
+</nav>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+const A = "Exit zero, nothing recorded";
+const B = "Exit zero, occurrence recorded";
+const C = "Exit one, nothing recorded";
+renderQuiz("quiz", [
+  { q: "Every test passes on attempt 1.", options: [A, B, C], answer: 0,
+    why: "No failures and a zero exit code. There is nothing to rerun or record." },
+  { q: "<code>test_login</code> fails on attempt 1 and passes on attempt 2. It is not quarantined.", options: [A, B, C], answer: 1,
+    why: "Failed then passed is a flake occurrence. It is recorded, and the build passes." },
+  { q: "<code>test_login</code> fails on both attempts. It is not quarantined.", options: [A, B, C], answer: 2,
+    why: "It never passed, so it is a real failure. Real failures are not flake occurrences." },
+  { q: "<code>test_login</code> fails on both attempts. It is quarantined.", options: [A, B, C], answer: 0,
+    why: "A quarantined test still runs but can't fail the build. It didn't pass, so there is no new occurrence." },
+  { q: "The test command crashes with exit code 1. The results file lists no failed tests.", options: [A, B, C], answer: 2,
+    why: "A non-zero exit with no failed test to explain it is a crash, and a crash fails the build." },
+  { q: "The tracker is down. <code>test_login</code> is quarantined and fails on both attempts.", options: [A, B, C], answer: 2,
+    why: "With no tracker the quarantine list is treated as empty, so the failure counts. Stricter, never looser." }
+]);
+</script>
+</body>
+</html>
