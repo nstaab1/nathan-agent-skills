@@ -50,6 +50,9 @@
       "linked": true,
       "status": "modified"
     },
+    "engineering/auditing-tests": {
+      "source": null
+    },
     "engineering/code-comprehension": {
       "source": null
     },
@@ -168,6 +171,9 @@
       "vendorCommit": "1fe572dde69a06e4fb583126e829d2b84408b667",
       "linked": true,
       "status": "verbatim"
+    },
+    "engineering/reviewing-ci-run-times": {
+      "source": null
     },
     "engineering/setup-agent-skills": {
       "source": "mattpocock",
