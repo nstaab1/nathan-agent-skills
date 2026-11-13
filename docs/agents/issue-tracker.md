@@ -9,7 +9,7 @@ This clone has two GitHub remotes: `origin` (`nstaab1/nathan-agent-skills`, the 
 ## Conventions
 
 - **Create an issue**: `gh issue create -R nstaab1/nathan-agent-skills --title "..." --body "..."`. Use a heredoc for multi-line bodies.
-- **Read an issue**: `gh issue view <number> -R nstaab1/nathan-agent-skills --comments`, filtering comments by `jq` and also fetching labels.
+- **Read an issue**: `gh issue view <number> -R nstaab1/nathan-agent-skills --json number,title,body,labels,comments --jq '{number,title,body,labels:[.labels[].name],comments:[.comments[]|{author:.author.login,body}]}'`. `--jq` needs `--json`, so `--comments --jq` fails.
 - **List issues**: `gh issue list -R nstaab1/nathan-agent-skills --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
 - **Comment on an issue**: `gh issue comment <number> -R nstaab1/nathan-agent-skills --body "..."`
 - **Apply / remove labels**: `gh issue edit <number> -R nstaab1/nathan-agent-skills --add-label "..."` / `--remove-label "..."`
