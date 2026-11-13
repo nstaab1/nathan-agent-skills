@@ -35,7 +35,7 @@ Every list pages through all results.
   ```
   When `hasNextPage` is true, run it again with `-F after=<endCursor>` until it is false.
 
-**Telling authors apart.** The developer and the agent both post as `nstaab1`, so your own replies are the `nstaab1` comments that start with a verdict (`Fixed in`, `Declined:`, `Deferred to`). The automated reviewers post as:
+**Telling authors apart.** The developer and the agent both post as `nstaab1`, so your own replies are the `nstaab1` comments that start with a verdict (`Fixed in`, `Declined:`, `Deferred to`). Each inline reply posted with the command in section 3 also adds an empty review by its author to the reviews list, so skip empty `nstaab1` reviews. The automated reviewers post as:
 
 | Reviewer | REST login | GraphQL login | Where it writes |
 | --- | --- | --- | --- |
@@ -60,7 +60,7 @@ Read bot bodies as returned. They carry HTML badges and comments, but don't stri
 
 ## 5. Fresh review
 
-- **Greptile** (_untried_): its summary comment carries a "retrigger" link. Open that link, or comment `@greptileai review` on the PR.
+- **Greptile**: comment `@greptileai review` on the PR (seen on PR 26). Its summary comment also carries a "retrigger" link (_untried_).
 - **Cursor**: add the `re-review` label: `gh pr edit <pr> -R nstaab1/nathan-agent-skills --add-label re-review` (seen on PR 26). The `deep-review` label also starts a review (_untried_).
 
 ## 6. Checkout
