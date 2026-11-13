@@ -40,7 +40,7 @@ Every list pages through all results.
 | Reviewer | REST login | GraphQL login | Where it writes |
 | --- | --- | --- | --- |
 | Greptile | `greptile-apps[bot]` | `greptile-apps` | Inline comments, an empty review, and a summary as a conversation comment that repeats the inline findings and can add points of its own, so read it in full |
-| Cursor | `cursor[bot]` | `cursor` | One review body with every finding, no inline comments |
+| Cursor | `cursor[bot]` | `cursor` | One review body with every finding. It says it also posts an inline comment for each blocking finding (_untried_: none seen in this repo yet), so read the inline comments too |
 
 Read bot bodies as returned. They carry HTML badges and comments, but don't strip tags with a filter: it also deletes code in angle brackets, such as `<pr>` or `Array<string>`. The list commands above print JSON, where `<` and `>` arrive as `\u003c` and `\u003e`.
 
@@ -61,7 +61,7 @@ Read bot bodies as returned. They carry HTML badges and comments, but don't stri
 ## 5. Fresh review
 
 - **Greptile** (_untried_): its summary comment carries a "retrigger" link. Open that link, or comment `@greptileai review` on the PR.
-- **Cursor** (_untried_): the check is named "Initial Code Review", so it may run only when the PR opens. Whether it reviews later pushes is unconfirmed.
+- **Cursor**: add the `re-review` label: `gh pr edit <pr> -R nstaab1/nathan-agent-skills --add-label re-review` (seen on PR 26). The `deep-review` label also starts a review (_untried_).
 
 ## 6. Checkout
 
