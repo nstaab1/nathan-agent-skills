@@ -4,6 +4,8 @@ description: "Implement a piece of work based on a spec or set of tickets."
 disable-model-invocation: true
 ---
 
+<!-- Derived from implement-copy, which is itself modified from mattpocock/skills (MIT). See THIRD_PARTY_NOTICES.md. -->
+
 Implement the work described by the user in the spec or tickets.
 
 Before writing code, branch from the **base branch**: the branch this work merges into. `docs/agents/branching.md` names it and gives the branch-name pattern, such as `<type>/<slug>` or `feature/<ticket>-<slug>`. Fill that pattern from the work in hand.
