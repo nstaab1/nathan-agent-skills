@@ -61,7 +61,7 @@ Read bot bodies as returned. They carry HTML badges and comments, but don't stri
 ## 5. Fresh review
 
 - **Greptile**: comment `@greptileai review` on the PR (seen on PR 26). Its summary comment also carries a "retrigger" link (_untried_).
-- **Cursor**: add the `re-review` label: `gh pr edit <pr> -R nstaab1/nathan-agent-skills --add-label re-review` (seen on PR 26). The `deep-review` label also starts a review (_untried_).
+- **Cursor**: add the `re-review` label: `gh pr edit <pr> -R nstaab1/nathan-agent-skills --add-label re-review` (seen on PR 26). If the label is already on the PR, remove it first with `gh pr edit <pr> -R nstaab1/nathan-agent-skills --remove-label re-review`, then add it again (seen on PR 26). The `deep-review` label also starts a review (_untried_).
 
 ## 6. Checkout
 
