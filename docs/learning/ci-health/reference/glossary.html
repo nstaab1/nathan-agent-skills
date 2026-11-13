@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CI-health glossary</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+<div class="kicker">Reference</div>
+<h1>Glossary</h1>
+<p>Terms are added as each lesson teaches them. The design's own terms come from <code>GLOSSARY.md</code> at the repo root and are used here unchanged.</p>
+
+<h2 id="ci">How CI is put together</h2>
+<table>
+<tr><th>Term</th><th>Meaning</th><th>Lesson</th></tr>
+<tr id="run"><td><strong>Run</strong></td><td>One execution of the CI pipeline for one commit. It holds one or more jobs.</td><td><a href="../lessons/0001-what-a-ci-run-is-made-of.html">1</a></td></tr>
+<tr id="job"><td><strong>Job</strong></td><td>A list of steps that execute in order on one runner. Jobs in a run execute side by side unless told otherwise.</td><td><a href="../lessons/0001-what-a-ci-run-is-made-of.html">1</a></td></tr>
+<tr id="step"><td><strong>Step</strong></td><td>One command inside a job, such as "install" or "run the tests".</td><td><a href="../lessons/0001-what-a-ci-run-is-made-of.html">1</a></td></tr>
+<tr id="runner"><td><strong>Runner</strong></td><td>The machine that executes one job. GitHub-hosted runners are fresh for each job, with tools preinstalled; your code arrives through a checkout step. Self-hosted runners can keep files between jobs.</td><td><a href="../lessons/0001-what-a-ci-run-is-made-of.html">1</a></td></tr>
+<tr id="exit-code"><td><strong>Exit code</strong></td><td>The number a command hands back when it finishes. 0 means success. Anything else means failure.</td><td><a href="../lessons/0001-what-a-ci-run-is-made-of.html">1</a></td></tr>
+</table>
+
+<h2 id="junit">JUnit XML</h2>
+<table>
+<tr><th>Term</th><th>Meaning</th><th>Lesson</th></tr>
+<tr id="junit-xml"><td><strong>JUnit XML</strong></td><td>A results file layout that nearly every test framework can write. A convention, with no official standard.</td><td><a href="../lessons/0002-junit-xml.html">2</a></td></tr>
+<tr id="testcase"><td><strong>testcase</strong></td><td>The element for one test. Empty means passed.</td><td><a href="../lessons/0002-junit-xml.html">2</a></td></tr>
+<tr id="failure"><td><strong>failure</strong></td><td>Inside a testcase: an assertion was wrong.</td><td><a href="../lessons/0002-junit-xml.html">2</a></td></tr>
+<tr id="error"><td><strong>error</strong></td><td>Inside a testcase: the test broke before it could finish.</td><td><a href="../lessons/0002-junit-xml.html">2</a></td></tr>
+<tr id="skipped"><td><strong>skipped</strong></td><td>Inside a testcase: the test did not run.</td><td><a href="../lessons/0002-junit-xml.html">2</a></td></tr>
+<tr id="identity"><td><strong>Test identity</strong></td><td><code>classname</code> plus <code>name</code>, copied exactly from the file. It titles the flaky-test record.</td><td><a href="../lessons/0002-junit-xml.html">2</a></td></tr>
+</table>
+
+<h2 id="flakes">Retries and flakes</h2>
+<table>
+<tr><th>Term</th><th>Meaning</th><th>Lesson</th></tr>
+<tr id="retry"><td><strong>Retry</strong></td><td>Running a failed test again on the same commit.</td><td><a href="../lessons/0003-retries-and-flake-occurrences.html">3</a></td></tr>
+<tr id="flaky-test"><td><strong>Flaky test</strong></td><td>A test that both failed and passed on the same commit with no code change.</td><td><a href="../lessons/0003-retries-and-flake-occurrences.html">3</a></td></tr>
+<tr id="flake-occurrence"><td><strong>Flake occurrence</strong></td><td>One CI run in which a test failed and then passed. Failing every attempt is a real failure and never counts.</td><td><a href="../lessons/0003-retries-and-flake-occurrences.html">3</a></td></tr>
+</table>
+
+<h2 id="verdict">The verdict script</h2>
+<table>
+<tr><th>Situation</th><th>Exit code</th><th>Recorded</th></tr>
+<tr><td>All tests pass</td><td>0</td><td>nothing</td></tr>
+<tr><td>Failed, then passed on the rerun</td><td>0</td><td>a flake occurrence</td></tr>
+<tr><td>Failed twice, not quarantined</td><td>1</td><td>nothing</td></tr>
+<tr><td>Failed twice, quarantined</td><td>0</td><td>nothing</td></tr>
+<tr><td>Test command crashed, no failed test in the file</td><td>1</td><td>nothing</td></tr>
+<tr><td>Rerun crashed, or left a failed test without a result</td><td>1</td><td>nothing</td></tr>
+<tr><td>Tracker unreachable</td><td colspan="2">Quarantine list is treated as empty, so the build is stricter</td></tr>
+</table>
+<p>See <a href="../lessons/0004-the-verdict-script.html">lesson 4</a> for the flowchart.</p>
+
+<h2 id="quarantine">The record and quarantine</h2>
+<table>
+<tr><th>Term</th><th>Meaning</th><th>Lesson</th></tr>
+<tr id="record"><td><strong>Flaky-test record</strong></td><td>The tracker ticket for one flaky test. Its title is the test identity and each comment is a flake occurrence.</td><td><a href="../lessons/0005-the-flaky-test-record-and-quarantine.html">5</a></td></tr>
+<tr id="quarantine-term"><td><strong>Quarantine</strong></td><td>The test still runs but cannot fail the build. It is a label on the record.</td><td><a href="../lessons/0005-the-flaky-test-record-and-quarantine.html">5</a></td></tr>
+<tr><td><strong>Into quarantine</strong></td><td>Three flake occurrences, within 30 days, across at least two branches, and under the cap (5% of the suite by default).</td><td><a href="../lessons/0005-the-flaky-test-record-and-quarantine.html">5</a></td></tr>
+<tr><td><strong>Out of quarantine</strong></td><td>The fix is merged and the record closes, or 30 days pass and the label comes off.</td><td><a href="../lessons/0005-the-flaky-test-record-and-quarantine.html">5</a></td></tr>
+<tr><td><strong>Scheduled agent</strong></td><td>Wakes on a timer, takes quarantined records first, opens at most three fix PRs per run with 20 passes in a row as proof, and never merges.</td><td><a href="../lessons/0005-the-flaky-test-record-and-quarantine.html">5</a></td></tr>
+</table>
+
+<h2 id="audit">The test audit</h2>
+<table>
+<tr><th>Kind of unneeded test</th><th>What it is</th><th>Evidence</th><th>Label</th></tr>
+<tr><td><strong>Tautological</strong></td><td>Still passes when the behaviour is broken.</td><td>Mutation check</td><td>ready-for-agent</td></tr>
+<tr><td><strong>Dead</strong></td><td>Skipped or disabled with no ticket tracking its return.</td><td>The skip marker</td><td>ready-for-agent</td></tr>
+<tr><td><strong>Redundant</strong></td><td>Checks a behaviour another test already checks the same way.</td><td>Reasoning</td><td>needs-triage</td></tr>
+<tr><td><strong>Implementation-coupled</strong></td><td>Fails on a refactor that changes no behaviour.</td><td>Reasoning</td><td>needs-triage</td></tr>
+<tr><td><strong>Misplaced</strong></td><td>Checks at an expensive level what a cheap level covers.</td><td>Reasoning</td><td>needs-triage</td></tr>
+</table>
+<p><strong>Mutation check:</strong> break the real code on purpose and run the suspect test. Still passing proves it tautological. See <a href="../lessons/0006-tautological-tests-and-the-mutation-check.html">lesson 6</a>.</p>
+
+<h2 id="rules">Rules worth keeping</h2>
+<table>
+<tr><th>Rule</th><th>Why it matters to the design</th></tr>
+<tr><td>A step fails when its command exits non-zero.</td><td>This is the only lever the verdict script has for failing a build.</td></tr>
+<tr><td>A failed step fails its job, and later steps are skipped.</td><td>The verdict script must be the thing that runs the tests, or it may never get a turn.</td></tr>
+<tr><td><code>command || true</code> always exits 0.</td><td>It hides a crash, which is why the design wraps the test command instead.</td></tr>
+</table>
+
+<nav class="course">Lessons: <a href="../lessons/0001-what-a-ci-run-is-made-of.html">1</a>, <a href="../lessons/0002-junit-xml.html">2</a>, <a href="../lessons/0003-retries-and-flake-occurrences.html">3</a>, <a href="../lessons/0004-the-verdict-script.html">4</a>, <a href="../lessons/0005-the-flaky-test-record-and-quarantine.html">5</a>, <a href="../lessons/0006-tautological-tests-and-the-mutation-check.html">6</a>, <a href="../lessons/0007-the-four-pieces-together.html">7</a>. See also the <a href="design-map.html">design map</a>.</nav>
+</main>
+</body>
+</html>

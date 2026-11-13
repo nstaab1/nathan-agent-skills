@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 2: JUnit XML</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+<div class="kicker">Lesson 2 of 7 · about 6 minutes</div>
+<h1>JUnit XML: the results file every framework can write</h1>
+
+<p>In <a href="0001-what-a-ci-run-is-made-of.html">lesson 1</a> you saw that CI reads one number from a step, the exit code. An exit code of 1 says "something failed". It doesn't say <em>which test</em>. The design needs to know which test, so it needs a second source of information.</p>
+
+<div class="win">
+<p><strong>What you'll be able to do:</strong> open a JUnit XML file and say which tests passed, failed or were skipped, and what name the design would track each one under.</p>
+</div>
+
+<h2>The problem it solves</h2>
+
+<p>Every test framework prints results to the terminal in its own style. A script that had to read pytest's text, Vitest's text and Go's text would need a separate reader for each one.</p>
+
+<p>Nearly every framework can also save its results to a file in one shared layout, called <strong>JUnit XML</strong>. The name comes from JUnit, a Java test tool whose report layout other tools copied. You don't need Java or JUnit to use it.</p>
+
+<figure>
+<svg viewBox="0 0 680 220" role="img" aria-label="Three test frameworks each write the same kind of results file, which one verdict script reads.">
+  <rect class="d-box" x="10" y="15" width="150" height="46" rx="6"/>
+  <text class="d-text" x="85" y="43" text-anchor="middle">pytest</text>
+  <rect class="d-box" x="10" y="87" width="150" height="46" rx="6"/>
+  <text class="d-text" x="85" y="115" text-anchor="middle">Vitest</text>
+  <rect class="d-box" x="10" y="159" width="150" height="46" rx="6"/>
+  <text class="d-text" x="85" y="187" text-anchor="middle">Go test</text>
+
+  <path class="d-line" d="M160 38 L262 100"/>
+  <path class="d-line" d="M160 110 H262"/>
+  <path class="d-line" d="M160 182 L262 120"/>
+
+  <rect class="d-good" x="265" y="80" width="170" height="60" rx="6"/>
+  <text class="d-text" x="350" y="106" text-anchor="middle" font-weight="bold">results.xml</text>
+  <text class="d-small" x="350" y="124" text-anchor="middle">JUnit XML, same layout</text>
+
+  <path class="d-line" d="M435 110 H495"/>
+  <path class="d-line" d="M488 104 L496 110 L488 116"/>
+
+  <rect class="d-box" x="500" y="80" width="170" height="60" rx="6"/>
+  <text class="d-text" x="585" y="106" text-anchor="middle" font-weight="bold">verdict script</text>
+  <text class="d-small" x="585" y="124" text-anchor="middle">one reader for all</text>
+</svg>
+<figcaption>This is what "JUnit XML as an abstraction" means. The verdict script never talks to pytest or Vitest. It only reads the file they all know how to write.</figcaption>
+</figure>
+
+<p>You turn it on with a flag. In pytest it is <code>--junitxml=results.xml</code> (<a href="https://docs.pytest.org/en/stable/how-to/output.html#creating-junitxml-format-files">pytest docs</a>). In Vitest it is <code>--reporter=junit</code> (<a href="https://vitest.dev/guide/reporters">Vitest docs</a>).</p>
+
+<h2>What the file looks like</h2>
+
+<p>It is three kinds of box, one inside the next.</p>
+
+<figure>
+<svg viewBox="0 0 680 200" role="img" aria-label="A testsuites element contains a testsuite, which contains testcase elements.">
+  <rect class="d-outer" x="10" y="10" width="660" height="180" rx="6"/>
+  <text class="d-label" x="24" y="32">testsuites · the whole file</text>
+  <rect class="d-box" x="30" y="46" width="620" height="128" rx="6"/>
+  <text class="d-label" x="44" y="68">testsuite · one group, with totals</text>
+  <rect class="d-good" x="46" y="84" width="186" height="72" rx="4"/>
+  <text class="d-text" x="139" y="114" text-anchor="middle">testcase</text>
+  <text class="d-small" x="139" y="134" text-anchor="middle">one test, passed</text>
+  <rect class="d-bad" x="247" y="84" width="186" height="72" rx="4"/>
+  <text class="d-text" x="340" y="114" text-anchor="middle">testcase</text>
+  <text class="d-small" x="340" y="134" text-anchor="middle">one test, with a failure inside</text>
+  <rect class="d-good" x="448" y="84" width="186" height="72" rx="4"/>
+  <text class="d-text" x="541" y="114" text-anchor="middle">testcase</text>
+  <text class="d-small" x="541" y="134" text-anchor="middle">one test, passed</text>
+</svg>
+<figcaption>One <code>testcase</code> per test. Everything the design tracks is at this level.</figcaption>
+</figure>
+
+<p>Here is a real-shaped file from a pytest run of four tests:</p>
+
+<pre><code>&lt;testsuites&gt;
+  &lt;testsuite name="pytest" tests="4" failures="1" skipped="1"&gt;
+
+    &lt;testcase classname="tests.test_cart" name="test_add_item"/&gt;
+
+    &lt;testcase classname="tests.test_cart" name="test_checkout_total"&gt;
+      &lt;failure message="assert 39 == 40"/&gt;
+    &lt;/testcase&gt;
+
+    &lt;testcase classname="tests.test_cart" name="test_remove_item"/&gt;
+
+    &lt;testcase classname="tests.test_tax" name="test_vat_rounding"&gt;
+      &lt;skipped message="not ready"/&gt;
+    &lt;/testcase&gt;
+
+  &lt;/testsuite&gt;
+&lt;/testsuites&gt;</code></pre>
+
+<h2>How to read one testcase</h2>
+
+<p>Look at what is <em>inside</em> the <code>testcase</code>.</p>
+
+<table>
+<tr><th>Inside the testcase</th><th>Meaning</th></tr>
+<tr><td>nothing</td><td>The test passed.</td></tr>
+<tr><td><code>&lt;failure&gt;</code></td><td>An assertion was wrong. The test ran and the answer was not what it expected.</td></tr>
+<tr><td><code>&lt;error&gt;</code></td><td>The test blew up before it could finish, for example an exception or a timeout.</td></tr>
+<tr><td><code>&lt;skipped&gt;</code></td><td>The test did not run.</td></tr>
+</table>
+
+<p>So in the file above: <code>test_add_item</code> and <code>test_remove_item</code> passed, <code>test_checkout_total</code> failed, and <code>test_vat_rounding</code> was skipped.</p>
+
+<h2>The name the design tracks</h2>
+
+<p>Each testcase carries two labels: <code>classname</code>, which says where the test lives, and <code>name</code>, which is the test itself. The design uses the two together, exactly as written in the file, as the test's identity. The flaky-test record for the failure above would be titled:</p>
+
+<pre><code>flaky: tests.test_cart test_checkout_total</code></pre>
+
+<p>Frameworks fill in <code>classname</code> differently. pytest writes a dotted module path like <code>tests.test_cart</code>. Vitest writes the file path, like <code>tests/cart.test.ts</code>. The verdict script doesn't care about the difference. It copies whatever is there, which is why no per-framework naming rules are needed.</p>
+
+<h2>One honest caveat</h2>
+
+<p>There is no official JUnit XML standard. It is a convention that tools agree on in practice, and each tool has small differences (<a href="https://github.com/ligurio/sqa-wiki/wiki/test-report-formats">test report formats</a>). Everything in this lesson is in the part they all share. The part where they differ is how a <em>retried</em> test is written down, and that is lesson 3.</p>
+
+<h2>Check yourself</h2>
+<p>Questions 1 to 4 are on this lesson. Question 5 reaches back to lesson 1, the one about <code>|| true</code>.</p>
+
+<div class="quiz" id="quiz"></div>
+
+<h2>Read next</h2>
+<p>The pytest page <a href="https://docs.pytest.org/en/stable/how-to/output.html#creating-junitxml-format-files">Creating JUnitXML format files</a> is short and shows the flag in use. For a hands-on win, run <code>pytest --junitxml=results.xml</code> or <code>vitest run --reporter=junit --outputFile=results.xml</code> in any repo of yours and open the file.</p>
+
+<p>Anything unclear? Ask your coding agent. It can read these lessons, the skills and the spec, and answer follow-up questions.</p>
+
+<nav class="course">
+Previous: <a href="0001-what-a-ci-run-is-made-of.html">lesson 1</a>. Reference: <a href="../reference/glossary.html">glossary</a>. Next: <a href="0003-retries-and-flake-occurrences.html">lesson 3, retries and flake occurrences</a>.
+</nav>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    q: "A <code>testcase</code> element has nothing inside it. What happened to that test?",
+    options: ["The test passed", "The test failed", "The test skipped"],
+    answer: 0,
+    why: "An empty testcase is a pass. Failures, errors and skips each add an element inside it."
+  },
+  {
+    q: "A test hits a timeout and never reaches its assertion. Which element appears inside its testcase?",
+    options: ["An error element", "A failure element", "A skipped element"],
+    answer: 0,
+    why: "Failure means an assertion was wrong. Error means the test broke before it could finish."
+  },
+  {
+    q: "Which two attributes together give a test its identity in a flaky-test record?",
+    options: ["classname and name", "failures and tests", "message and name"],
+    answer: 0,
+    why: "The design uses classname plus name, copied exactly as the file has them."
+  },
+  {
+    q: "Why does the verdict script read JUnit XML instead of the terminal output?",
+    options: ["Nearly every framework can write it", "GitHub demands it from every job", "It loads faster than plain text"],
+    answer: 0,
+    why: "One shared layout means one reader, whatever framework the repo uses."
+  },
+  {
+    q: "From lesson 1: why does the verdict script wrap the test command, instead of following <code>pytest || true</code>?",
+    options: ["It needs the real exit code", "It needs a faster test machine", "It needs fewer lines of config"],
+    answer: 0,
+    why: "\"|| true\" turns every exit code into 0. If pytest crashed before writing the file, nothing would show the failure."
+  }
+]);
+</script>
+</body>
+</html>

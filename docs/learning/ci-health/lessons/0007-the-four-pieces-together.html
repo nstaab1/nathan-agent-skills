@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 7: The four pieces together</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+<div class="kicker">Lesson 7 of 7 · about 7 minutes</div>
+<h1>The four pieces together</h1>
+
+<p>Lessons 1 to 6 covered each mechanism. This last lesson shows how they fit, and covers the one piece not yet looked at: the run-time review.</p>
+
+<div class="win">
+<p><strong>What you'll be able to do:</strong> explain the whole design from one picture.</p>
+</div>
+
+<h2>The map</h2>
+
+<figure>
+<svg viewBox="0 0 680 300" role="img" aria-label="Three skills write tickets to the issue tracker. All three read one file describing the repo's CI. A fourth skill, the review skill, flags unneeded tests before merge.">
+  <rect class="d-box" x="10" y="15" width="200" height="74" rx="6"/>
+  <text class="d-text" x="110" y="40" text-anchor="middle" font-weight="bold">auditing-tests</text>
+  <text class="d-small" x="110" y="58" text-anchor="middle">when you ask</text>
+  <text class="d-small" x="110" y="74" text-anchor="middle">finds unneeded tests</text>
+
+  <rect class="d-box" x="240" y="15" width="200" height="74" rx="6"/>
+  <text class="d-text" x="340" y="40" text-anchor="middle" font-weight="bold">reviewing-ci-run-times</text>
+  <text class="d-small" x="340" y="58" text-anchor="middle">weekly</text>
+  <text class="d-small" x="340" y="74" text-anchor="middle">finds slow parts of CI</text>
+
+  <rect class="d-box" x="470" y="15" width="200" height="74" rx="6"/>
+  <text class="d-text" x="570" y="40" text-anchor="middle" font-weight="bold">fixing-flaky-tests</text>
+  <text class="d-small" x="570" y="58" text-anchor="middle">every CI run, plus a timer</text>
+  <text class="d-small" x="570" y="74" text-anchor="middle">records, quarantines, fixes</text>
+
+  <path class="d-line" d="M240 52 H214"/><path class="d-line" d="M221 46 L213 52 L221 58"/>
+
+  <path class="d-line" d="M110 89 V140"/><path class="d-line" d="M104 133 L110 141 L116 133"/>
+  <text class="d-small" x="118" y="118">audit tickets</text>
+  <path class="d-line" d="M340 89 V140"/><path class="d-line" d="M334 133 L340 141 L346 133"/>
+  <text class="d-small" x="348" y="118">review ticket</text>
+  <path class="d-line" d="M570 89 V140"/><path class="d-line" d="M564 133 L570 141 L576 133"/>
+  <text class="d-small" x="578" y="118">flaky-test records</text>
+
+  <rect class="d-good" x="10" y="142" width="660" height="52" rx="6"/>
+  <text class="d-text" x="340" y="165" text-anchor="middle" font-weight="bold">Issue tracker</text>
+  <text class="d-small" x="340" y="183" text-anchor="middle">labels decide whether an agent or a human picks each ticket up</text>
+
+  <rect class="d-box" x="10" y="222" width="320" height="62" rx="6"/>
+  <text class="d-text" x="170" y="247" text-anchor="middle" font-weight="bold">docs/agents/ci.md</text>
+  <text class="d-small" x="170" y="267" text-anchor="middle">how this repo's CI works · read by all three</text>
+
+  <rect class="d-box" x="350" y="222" width="320" height="62" rx="6"/>
+  <text class="d-text" x="510" y="247" text-anchor="middle" font-weight="bold">ns-code-review</text>
+  <text class="d-small" x="510" y="267" text-anchor="middle">flags unneeded tests in a diff before merge</text>
+</svg>
+<figcaption>The small arrow at the top: when slow tests dominate, the run-time review hands the audit a list of where to look.</figcaption>
+</figure>
+
+<p>Each piece answers one of the problems the design set out to solve:</p>
+
+<table>
+<tr><th>The problem</th><th>The piece</th></tr>
+<tr><td>Agents write too many tests</td><td><code>ns-code-review</code> stops them at review. <code>auditing-tests</code> finds the ones already merged.</td></tr>
+<tr><td>Flaky tests and reruns</td><td><code>fixing-flaky-tests</code>: the verdict script, the records, quarantine and the scheduled agent.</td></tr>
+<tr><td>CI takes too long</td><td><code>reviewing-ci-run-times</code>, with help from the audit removing misplaced tests.</td></tr>
+</table>
+
+<h2>The run-time review</h2>
+
+<p>A <strong>run-time review</strong> is a scheduled look at CI history that files suggestions for shortening runs. Once a week an agent reads the last 30 days of runs, up to 200, and looks for:</p>
+
+<table>
+<tr><th>It looks at</th><th>A typical suggestion</th></tr>
+<tr><td>Slowest jobs and steps</td><td>"Install takes four minutes on every run. Cache it."</td></tr>
+<tr><td>Jobs that wait for each other</td><td>"Lint and tests could run side by side."</td></tr>
+<tr><td>Jobs that run when they can't be affected</td><td>"A docs-only change still runs the full suite."</td></tr>
+<tr><td>Slowest individual tests</td><td>"These 40 tests take half the time. Audit them."</td></tr>
+<tr><td>How often runs are retried, and time spent queuing</td><td>"A fifth of runs needed a rerun last week."</td></tr>
+</table>
+
+<p>It files one ticket per review, ranked by minutes saved per week and linked to the previous review, so you can see whether things are improving. It uses the terms from lesson 1: runs, jobs and steps.</p>
+
+<h2>The file that ties it together</h2>
+
+<p><code>docs/agents/ci.md</code> lives in each repo that uses the skills. It is the one standard place every skill looks. It records the CI provider, how to fetch run history, the test command, the "rerun only the failures" command if the framework has one, where the verdict script is, the label names, the quarantine cap and which scheduled agents are set up.</p>
+
+<h2>Build order</h2>
+
+<table>
+<tr><th>#</th><th>Ticket</th><th>Why here</th></tr>
+<tr><td>1</td><td><code>ns-code-review</code></td><td>A rename with no new behaviour. Quick to review.</td></tr>
+<tr><td>2</td><td><code>auditing-tests</code>, plus the test check in review</td><td>Needs no CI changes. You can try it the same day.</td></tr>
+<tr><td>3</td><td><code>fixing-flaky-tests</code></td><td>The largest piece. Starts with a small task: run pytest and Vitest and look at the real results files.</td></tr>
+<tr><td>4</td><td><code>reviewing-ci-run-times</code></td><td>Depends on <code>docs/agents/ci.md</code>, which ticket 3 sets up.</td></tr>
+</table>
+
+<h2>Check yourself</h2>
+<p>These mix every lesson.</p>
+
+<div class="quiz" id="quiz"></div>
+
+<h2>Where the work is tracked</h2>
+
+<p>The design is written up as <a href="https://github.com/nstaab1/nathan-agent-skills/issues/12">spec #12</a> and split into tickets #13 to #25. The <a href="../reference/design-map.html">design map</a> lists every decision on one page, grouped by skill.</p>
+
+<p>Anything unclear? Ask your coding agent. It can read these lessons, the skills and the spec, and answer follow-up questions.</p>
+
+<nav class="course">
+Previous: <a href="0006-tautological-tests-and-the-mutation-check.html">lesson 6</a>. Reference: <a href="../reference/glossary.html">glossary</a>, <a href="../reference/design-map.html">design map</a>.
+</nav>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    q: "From lesson 6: a test works out its expected value by calling the same function it tests. Which kind is it?",
+    options: ["Tautological test", "Dead test", "Misplaced test"],
+    answer: 0,
+    why: "It runs, so it isn't dead. If the function is wrong, both sides are wrong together, so the test can't fail."
+  },
+  {
+    q: "Which piece of the design runs inside every CI run?",
+    options: ["The verdict script", "The test audit", "The scheduled agent"],
+    answer: 0,
+    why: "It runs the tests, retries failures, records flake occurrences and gives the exit code."
+  },
+  {
+    q: "Where do all three skills learn how a particular repo's CI works?",
+    options: ["The ci.md file", "The tracker labels", "The results file"],
+    answer: 0,
+    why: "docs/agents/ci.md is the one standard place, written during setup."
+  },
+  {
+    q: "The run-time review finds that 40 slow tests take half of every run. What does it do?",
+    options: ["Suggests an audit scope", "Deletes the slow tests", "Quarantines the slow tests"],
+    answer: 0,
+    why: "It files suggestions only. The audit then judges whether those tests are misplaced."
+  },
+  {
+    q: "What catches an unneeded test before it is merged?",
+    options: ["The review skill", "The verdict script", "The scheduled agent"],
+    answer: 0,
+    why: "ns-code-review flags unneeded tests in a diff, using the same five kinds as the audit."
+  },
+  {
+    q: "The flaky-tests ticket starts with a small task. What is it?",
+    options: ["Inspect real results files", "Delete every flaky test", "Rewrite the test framework"],
+    answer: 0,
+    why: "The claims about how pytest and Vitest write retries came from third-party reports, so they are checked against real files first."
+  },
+  {
+    q: "From lesson 4: a quarantined test fails on both attempts and the tracker is reachable. What does the verdict script do?",
+    options: ["Exit zero, nothing recorded", "Exit zero, occurrence recorded", "Exit one, nothing recorded"],
+    answer: 0,
+    why: "Quarantined tests can't fail the build, and with no pass there is no new flake occurrence."
+  }
+]);
+</script>
+</body>
+</html>
