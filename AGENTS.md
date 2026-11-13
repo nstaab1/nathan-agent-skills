@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-GitHub Issues on `nstaab1/nathan-agent-skills`; pass `-R nstaab1/nathan-agent-skills` to every `gh` call so it never hits the `upstream` remote. See `docs/agents/issue-tracker.md`.
+GitHub Issues on `nstaab1/nathan-agent-skills`; pass `-R nstaab1/nathan-agent-skills` to every `gh issue`, `gh pr` and `gh label` call, and use `repos/nstaab1/nathan-agent-skills` in every `gh api` path so calls never hit the `upstream` remote. See `docs/agents/issue-tracker.md`.
 
 ### Pull requests
 
