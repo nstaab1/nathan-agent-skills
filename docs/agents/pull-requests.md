@@ -46,9 +46,9 @@ Strip HTML from bot bodies before reading: `| sed -e 's/<[^>]*>//g'`.
 
 ## 3. Reply and resolve
 
-- **Reply in an inline thread** (_untried_): `gh api --method POST repos/nstaab1/nathan-agent-skills/pulls/<pr>/comments/<comment-id>/replies -f body='<text>'`, where `<comment-id>` is the thread's first comment.
-- **Comment on the PR**, for a conversation comment or a review body finding (_untried_): `gh pr comment <pr> -R nstaab1/nathan-agent-skills --body '<text>'`. GitHub conversation comments have no reply threads, so the reply to a conversation comment is a new PR comment made with this command. Link the source item, for example `https://github.com/nstaab1/nathan-agent-skills/pull/<pr>#pullrequestreview-<review-id>` for a review body or `https://github.com/nstaab1/nathan-agent-skills/pull/<pr>#issuecomment-<comment-id>` for a conversation comment.
-- **Resolve a thread** (_untried_):
+- **Reply in an inline thread**: `gh api --method POST repos/nstaab1/nathan-agent-skills/pulls/<pr>/comments/<comment-id>/replies -f body='<text>'`, where `<comment-id>` is the thread's first comment.
+- **Comment on the PR**, for a conversation comment or a review body finding: `gh pr comment <pr> -R nstaab1/nathan-agent-skills --body '<text>'`. GitHub conversation comments have no reply threads, so the reply to a conversation comment is a new PR comment made with this command. Link the source item, for example `https://github.com/nstaab1/nathan-agent-skills/pull/<pr>#pullrequestreview-<review-id>` for a review body or `https://github.com/nstaab1/nathan-agent-skills/pull/<pr>#issuecomment-<comment-id>` for a conversation comment.
+- **Resolve a thread**:
   `gh api graphql -f query='mutation($id:ID!){ resolveReviewThread(input:{threadId:$id}){ thread{ isResolved } } }' -F id=<thread-id>`
 
 ## 4. Checks
