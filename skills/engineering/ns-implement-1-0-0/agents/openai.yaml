@@ -1,0 +1,5 @@
+interface:
+  display_name: "NS Implement 1.0.0"
+  short_description: "Build work from a spec or tickets"
+policy:
+  allow_implicit_invocation: false
