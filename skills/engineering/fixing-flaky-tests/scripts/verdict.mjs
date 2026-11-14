@@ -699,18 +699,19 @@ const trackerProblem = (error, doing) =>
 // serves both the quarantine list and recording. When they can't be read,
 // `problem` says why, and the job has no records.
 const flakyRecords = (settings, { tracker, list = [], problem }) => {
-  const quarantined = (record) => record.open && record.labels.includes(settings.quarantineLabel);
+  // Open and carrying the quarantine label, which quarantines the record
+  // unless its history shows the label went on before the record last closed.
+  const labelled = (record) => record.open && record.labels.includes(settings.quarantineLabel);
   const matching = (identity) => list.filter((record) => isRecordOf(record, identity));
   return {
     tracker,
     problem,
-    // A record is quarantined while it is open and carries the quarantine label.
-    quarantined,
-    quarantinedCount: list.filter(quarantined).length,
+    labelled,
+    labelledCount: list.filter(labelled).length,
     // The test's record, if it has one.
     of: (identity) => matching(identity)[0],
-    // The test's quarantined record, if it has one.
-    quarantinedOf: (identity) => matching(identity).find(quarantined),
+    // The test's record that is open and carries the quarantine label, if any.
+    labelledOf: (identity) => matching(identity).find(labelled),
     // When an open record last closed, and whether the quarantine label it
     // carries went on before that, which leaves it from an earlier quarantine.
     historyOf: async (record) => {
@@ -919,7 +920,7 @@ const recordOccurrences = async (settings, records, identities, quarantine) => {
       }.`,
       countSentence(count),
     ];
-    if (records.quarantined(record) && !unquarantined) {
+    if (records.labelled(record) && !unquarantined) {
       said.push('Already quarantined.');
     } else if (qualifies(count) && quarantine.count < quarantine.allowed) {
       try {
@@ -960,7 +961,7 @@ const records =
 // the label stands as the listing shows it.
 const ignored = [];
 for (const { identity, failure } of stillFailing) {
-  const record = records.quarantinedOf(identity);
+  const record = records.labelledOf(identity);
   if (!record) {
     buildFailures.push(failure);
     continue;
@@ -985,7 +986,7 @@ const unread =
   stillFailing.length > 0 && records.problem
     ? [`Quarantine not read: ${records.problem}, so no test is treated as quarantined.`]
     : [];
-const quarantine = { ...capOf(settings.quarantineCap, suite), count: records.quarantinedCount, capped: [] };
+const quarantine = { ...capOf(settings.quarantineCap, suite), count: records.labelledCount, capped: [] };
 const recorded = await recordOccurrences(settings, records, occurrences, quarantine);
 const pass = buildFailures.length === 0;
 const summary = [
