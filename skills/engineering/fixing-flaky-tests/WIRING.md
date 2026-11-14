@@ -119,6 +119,7 @@ test:
       --flaky-label flaky-test
       --quarantine-label quarantined
       --quarantine-cap 5%
+      --tracker-user project_123_bot
       -- npx vitest run --reporter=default --reporter=junit --outputFile.junit=results.xml
 ```
 

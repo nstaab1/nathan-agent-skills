@@ -95,7 +95,7 @@ Needs the attempt number from **List runs**, every attempt from **Jobs and steps
 
 The rerun rate is the share of runs with more than one attempt. Rerun minutes per week are the run times of every attempt after the first. For up to ten rerun runs, read the failed log of the attempt before each rerun and sort its cause:
 
-- **A test** that failed and then passed on the rerun, a flake occurrence. When `## Verdict script` Location reads `None.`, suggest wiring the verdict script with `fixing-flaky-tests`. That needs a decision, since quarantine changes how builds pass. When the script is wired, suggest fixing those tests, and link each one's flaky-test record, the ticket that carries the CI doc's Flaky label and the test's name in its title. Either suggestion saves the test-caused rerun minutes per week.
+- **A test** that failed and then passed on the rerun, a flake occurrence. When `## Verdict script` Location reads `None.`, suggest wiring the verdict script with `fixing-flaky-tests`. That needs a decision, since quarantine changes how builds pass. When the script is wired, suggest fixing those tests, and link each one's flaky-test record: the ticket that carries the CI doc's Flaky label and whose body gives the test's classname and name, or, when its body gives none, whose title names the test. Either suggestion saves the test-caused rerun minutes per week.
 - **Infrastructure**, such as a failed network fetch, a lost runner, a full disk or a service the job calls. Suggest the fix the log points to. It saves the infrastructure-caused rerun minutes per week.
 - **Unknown**: list the runs.
 

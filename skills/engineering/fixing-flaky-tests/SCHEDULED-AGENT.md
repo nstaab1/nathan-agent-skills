@@ -8,7 +8,7 @@ Steps 1 to 6 run in order, and step 5 takes each record through [Working one rec
 
 Read `docs/agents/issue-tracker.md` and the CI doc, `docs/agents/ci.md`, and `docs/agents/triage-labels.md` and `docs/agents/pull-requests.md` when the repo has them. Stop wherever [step 1 of Setting a repo up](SKILL.md#1-read-the-docs) stops: a missing doc, a tracker the verdict script doesn't support, or no CI. Stop too when the CI doc's Verdict script **Location** reads `None.`, since the repo isn't wired and nothing records occurrences. A stop ends the run with a report saying why, so a person can set the repo up with this skill.
 
-From the CI doc, take the Test command, Run history's **Jobs and steps of a run**, **Full log of a run** and **Results file of a run**, the **Flaky label** and **Quarantine label**, and the Quarantine cap.
+From the CI doc, take the Test command, Run history's **Jobs and steps of a run**, **Full log of a run** and **Results file of a run**, the **Flaky label** and **Quarantine label**, the Quarantine cap, and Verdict script's **Tracker user**.
 
 A record is ready for the agent when it carries `ready-for-agent`, the name the verdict script writes, or the label `triage-labels.md` maps that role to. The run hands a record to a person with the label that file maps the `ready-for-human` role to, or `ready-for-human` when the file is absent. Create each label from [step 2 of Setting a repo up](SKILL.md#2-create-the-labels) that the tracker lacks.
 
