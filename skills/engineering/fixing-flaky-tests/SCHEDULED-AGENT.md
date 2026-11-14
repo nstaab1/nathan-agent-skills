@@ -28,7 +28,7 @@ Do the three parts in this order. When any of them changes a record, read the re
 
 **Merge duplicate records.** Records that carry the flaky label and share a title exactly are duplicates, left by two CI runs that each created one. Keep one of each set: the open quarantined one, the one with the earliest [quarantine start](#quarantine-start) when several are; else the oldest open one; else the oldest. For each other record in the set:
 
-1. Comment on the kept record with each of the duplicate's occurrences written as its people lines, the date, branch, job and run link, and a link to the duplicate. End the comment with a `merged` marker. These occurrences don't count toward quarantine on the kept record, because only CI writes occurrence markers, as [The run adds no occurrences](#the-run-adds-no-occurrences) says. Leaving them out can delay a quarantine and never brings one early.
+1. Comment on the kept record with a link to the duplicate and each of the duplicate's occurrences, written out as its date, branch, job and run link. End the comment with a `merged` marker. These occurrences don't count toward quarantine on the kept record, because only CI writes occurrence markers, as [The run adds no occurrences](#the-run-adds-no-occurrences) says. Leaving them out can delay a quarantine and never brings one early.
 2. Comment on the duplicate with the kept record's link, ending with a `duplicate` marker. When an open PR names the duplicate, comment the kept record's link on that PR too.
 3. Take the flaky label off the duplicate, and the quarantine label when it has one. When it carries the `ready-for-human` label, put that label on the kept record. Then close the duplicate, as a duplicate when the tracker has that reason, such as `gh issue close <number> --duplicate-of <kept number>`.
 
@@ -79,18 +79,20 @@ End with:
    Done when you have both commands, or the record is skipped.
 3. **Read the failures.** For the newest occurrences, up to five, list the jobs of the occurrence's `run` with the CI doc's Jobs and steps of a run, and find the one its `job` names, by name or by id. Read that job's log with Full log of a run narrowed to the job. Failed log prints nothing here, because the verdict script passed the job. Copy attempt 1's failure message and stack. Then compare the occurrences: the jobs or systems they ran on, their branches, their times of day and their messages. A log past the CI provider's retention is gone, so note which.
    Done when each occurrence you read has its failure or a note that its log is gone, and the pattern across them is written down.
-4. **Reproduce** on the unfixed code, in your own workspace. Run the test again and again under the conditions the failures point at: on its own, with its file, in random order where the framework shuffles, under CPU load, or with the clock, seed or timing the message suggests. A change that forces the failure, such as an injected delay, stays out of every commit. Stop at the first failure and keep its command and output. After about 100 runs across those conditions with no failure, the flake doesn't reproduce here, and you keep what you tried.
+4. **Reproduce** on the unfixed code, in your own workspace. Run the test again and again under the conditions the failures point at: on its own, with its file, in random order where the framework shuffles, under CPU load, or with the clock, seed or timing the message suggests. A change that forces the failure, such as an injected delay, stays out of every commit. Stop at the first failure and keep its command and output. After about 100 runs across those conditions with no failure, the failure doesn't reproduce here, and you keep what you tried.
    Done when the failure is reproduced with its command and output, or every attempt is written down.
 5. **Decide** to fix, delete or hand over.
    - **Fix** when you have found the cause. Remove it in the test or in the code it exercises: wait on the event the test needs, not on time; give the test its own state; pin the clock, the seed or the order. A retry, a skip marker or a longer sleep hides the cause and leaves the test flaky, so it is never the fix. Keep the test's classname and name, so CI keeps recording on this record.
    - **Delete** only a test that meets [Deleting a test](#deleting-a-test), with its kind's evidence. However hard a test is to fix, a test that is the only one verifying its behaviour stays.
    - **Hand over** in every other case: the cause wasn't found, the fix needs a decision only a person can make, such as a new dependency or a change in behaviour, or the cause lies outside the repo, such as a CI runner or a remote service. Go to step 8.
+
+   Done when the record has one of the three, with the cause for a fix, the kind and its evidence for a deletion, or the reason for a hand-over.
 6. **Prove the fix.** On the fixed code, run the test 20 times in a row, each run a new process, at the scope and under the conditions that reproduced the failure. With no reproduction, run it with its file. A loop such as `n=0; for i in $(seq 1 20); do <command> || break; n=$i; done; echo "$n of 20 passed in a row"` shows the count. Fewer than 20 means the fix didn't hold, so go back to step 5. Then run the test's file once, so the fix breaks no other test in it. A deletion takes only the file's run.
    Done when the 20 passes are recorded with their command, or the record has gone to step 8.
 7. **Open the fix PR.** Create a branch `flaky-test/<record number>-<YYYY-MM-DD>` off the latest default branch, commit the fix alone, push only that branch, and open the PR against the default branch with the host's CLI, such as `gh pr create` or `glab mr create`, following `docs/agents/pull-requests.md` when the repo has it. Title it `Fix flaky test <name>`, or `Delete <kind> test <name>`. The body holds, in order:
    1. `Fixes #<record number>`. GitHub and GitLab both close the record when the PR merges into the default branch, which ends its quarantine. When the records live in another project, write its full reference, such as `Fixes acme/shop#12`.
    2. The cause, with the evidence from the logs.
-   3. The reproduction on the unfixed code: its command and failing output. Without one, "Not reproduced", what was tried, and a line saying the 20 passes show the test still passes, not that the flake is gone.
+   3. The reproduction on the unfixed code: its command and failing output. Without one, "Not reproduced", what was tried, and a line saying the 20 passes show the test still passes, not that it is no longer flaky.
    4. The fix, and why it removes the cause.
    5. The 20 passes, with the command and its count line.
 
@@ -107,13 +109,13 @@ The verdict script records an occurrence when it runs with tracker settings, and
 - Run tests with the CI doc's test command or your one-test command directly, never wrapped in the verdict script. A routine that runs inside a CI job has the tracker settings in its environment, so the script there would record the agent's own runs.
 - Reproduce and run the 20 passes in your own workspace, and push only the finished fix. A pushed commit that forces the failure would run in the PR's CI and record occurrences on the agent's branch, which count toward quarantine as a branch of their own.
 - Keep the test's identity in a fix. A renamed test gets a new record at its next occurrence.
-- Write an occurrence in a comment as its people lines, and end every comment with [the agent's marker](#the-agents-comments).
+- When a comment names an occurrence, give its date, branch, job and run link as plain text, leaving out its `verdict-occurrence` line. End every comment with [the agent's marker](#the-agents-comments).
 
-The fix PR's own CI runs the verdict script as every PR does. A flake there is a real occurrence on the fixed code, recorded on the record, and it tells the reviewer the fix didn't hold.
+The fix PR's own CI runs the verdict script as every PR does. A flake occurrence there is a real one on the fixed code, recorded on the record, and it tells the reviewer the fix didn't hold.
 
 ## Quarantine start
 
-A record's quarantine started when the quarantine label last went on it. The tracker logs every label change with its time, whoever made it, the verdict script or a person. So the start is the newest event in the record's [label events](#tracker-reads) that added the quarantine label, on GitHub and GitLab alike. The occurrences can't stand in for it: a person can add the label by hand, and the cap can keep a qualifying test out of quarantine for days.
+A record's quarantine started when the quarantine label last went on it. The tracker logs every label change with its time, whoever made it, the verdict script or a person. So the start is the newest event in the record's [label events](#tracker-reads) that added the quarantine label, on GitHub and GitLab alike. The occurrences can't stand in for it, because a person can add the label by hand, and the cap can keep a qualifying test out of quarantine for days.
 
 When no event added the label, as on a record moved from another project, the start is the `quarantined_since` of the record's newest `quarantine-start` marker. With no such marker, comment one dated with the run's time, so the 30 days count from this run.
 
@@ -129,16 +131,9 @@ A record has an open PR when the title or description of an open PR from step 2 
 
 ## Deleting a test
 
-A flaky test may be deleted only when removing it loses no verification. It must be one of the kinds of unneeded test from the test audit, and the PR body gives the evidence that kind demands. When `auditing-tests` is installed, its SKILL.md and `references/mutation-check.md` hold the full rules, and they apply.
+A flaky test may be deleted only when removing it loses no verification. It must be an unneeded test of one of the kinds the `auditing-tests` skill defines, and the PR body gives the evidence that kind demands. Read that skill's `## The five kinds` and its `references/mutation-check.md`, and apply them as an audit would. Dead never applies here, because the open record is a ticket tracking the test.
 
-| Kind | The test | Evidence |
-| --- | --- | --- |
-| Tautological | still passes when the behaviour it claims to verify is broken | a mutation check: break the behaviour, show the break is real, run the test on its own and see it pass, then restore the code |
-| Redundant | verifies a behaviour another test already verifies through the same interface | the other test, by file and name, and why the two verify the same behaviour |
-| Implementation-coupled | fails on a refactor that changes no behaviour | the refactor, and the test that still covers the behaviour |
-| Misplaced | verifies at an expensive level what a cheaper level already covers | the cheaper test, by file and name, and why it covers the same check |
-
-The fifth kind, dead, never applies here, because the open record is a ticket tracking the test.
+When `auditing-tests` isn't installed, delete nothing. Hand the record over in step 8, and name in the findings the kind the test looks like and why.
 
 ## The agent's comments
 
@@ -163,7 +158,7 @@ Write the JSON on one line, with each `<`, `>` and `&` in a value as `\u003c`, `
 
 ## Tracker reads
 
-`docs/agents/issue-tracker.md` gives the commands to comment on, label and close a record. These are the reads the run needs beyond it. `<owner>/<repo>` and `:id`, which glab fills in from the clone, name the project the records live in: the one the CI config passes the verdict script as `--repo`, or this repo when it passes none. On GitLab, put another project's URL-encoded path in place of `:id`, such as `acme%2Fshop`. URL-encode a label that holds a space. With `--paginate`, read every page the command prints.
+`docs/agents/issue-tracker.md` gives the commands to comment on, label and close a record. These are the reads the run needs beyond it. `<owner>/<repo>` and `:id`, which glab fills in from the clone, name the project the records live in. That is the one the CI config passes the verdict script as `--repo`, or this repo when it passes none. On GitLab, put another project's URL-encoded path in place of `:id`, such as `acme%2Fshop`. URL-encode a label that holds a space. With `--paginate`, read every page the command prints.
 
 On GitHub:
 
