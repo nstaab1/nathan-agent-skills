@@ -93,7 +93,7 @@ End with:
 - The labels created.
 - Each finding of step 3.
 - Each identity that more than one test shares, from step 4.
-- When `## Scheduled agents` has no `fixing-flaky-tests` line, that the scheduled flaky-test agent isn't set up. Nothing works the open records, and quarantine never expires, since the script never takes the label off an open record. Give the developer [the daily routine](#the-daily-routine) to create.
+- When `## Scheduled agents` has no `fixing-flaky-tests` line, that the scheduled flaky-test agent isn't set up. Nothing works the open records, and quarantine never expires, since only the agent ends a quarantine at 30 days. Give the developer [the daily routine](#the-daily-routine) to create.
 
 ## The scheduled flaky-test agent
 

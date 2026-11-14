@@ -18,30 +18,30 @@ Done when every field above is read, the tracker holds the labels, and the run h
 
 ## 2. Read every record
 
-With the [tracker reads](#tracker-reads), list every flaky-test record, open and closed, and every open PR. Then read the comments of every open record and of every record whose title another record shares, and the label events of every open record that carries the quarantine label. Save each output to a folder outside the repo, such as a temporary directory. Compute every count, age and order in later steps with a script over those files, so each run computes them the same way.
+With the [tracker reads](#tracker-reads), list every flaky-test record, open and closed, and every open PR. Then read the comments of every open record and of every record whose title another record shares. Read the events of every open record too: when it closed, and, when it carries the quarantine label, when that label went on. Save each output to a folder outside the repo, such as a temporary directory. Compute every count, age and order in later steps with a script over those files, so each run computes them the same way.
 
-Done when the folder holds every record, every open PR, those comments and those label events.
+Done when the folder holds every record, every open PR, those comments and those events.
 
 ## 3. Tidy the records
 
 Do the three parts in this order. When any of them changes a record, read the records again as step 2 does before step 4.
 
-**Merge duplicate records.** Records that carry the flaky label and share a title exactly are duplicates, left by two CI runs that each created one. Keep one of each set: the open quarantined one, the one with the earliest [quarantine start](#quarantine-start) when several are; else the oldest open one; else the oldest. For each other record in the set:
+**Merge duplicate records.** Records that carry the flaky label, share a title exactly and give the same identity are duplicates, left by two CI runs that each created one. A record's body gives its identity in its Classname and Name lines. Two tests can share a title, such as classname `a b` with name `c` and classname `a` with name `b c`, and their records are not duplicates. A record whose body gives no Classname and Name, as one a person wrote, is a duplicate of every record with its title. Keep one of each set: the open quarantined one, the one with the earliest [quarantine start](#quarantine-start) when several are; else the oldest open one; else the oldest. For each other record in the set:
 
 1. Comment on the kept record with a link to the duplicate and each of the duplicate's occurrences, written out as its date, branch, job and run link. End the comment with a `merged` marker. These occurrences don't count toward quarantine on the kept record, because only CI writes occurrence markers, as [The run adds no occurrences](#the-run-adds-no-occurrences) says. Leaving them out can delay a quarantine and never brings one early.
 2. Comment on the duplicate with the kept record's link, ending with a `duplicate` marker. When an open PR names the duplicate, comment the kept record's link on that PR too.
 3. Take the flaky label off the duplicate, and the quarantine label when it has one. When it carries the `ready-for-human` label, put that label on the kept record. Then close the duplicate, as a duplicate when the tracker has that reason, such as `gh issue close <number> --duplicate-of <kept number>`.
 
-The flaky label has to come off. The verdict script finds a test's record by title among every record with that label, open or closed, and reopens a closed one, so a duplicate that kept the label could be reopened and recorded on.
+The flaky label has to come off. The verdict script finds a test's record by its title and identity among every record with that label, open or closed, and reopens a closed one, so a duplicate that kept the label could be reopened and recorded on.
 
 **Close records for tests that no longer exist.** For each open record, look for its test on the default branch's head. Search the test files for its name, or for the part before a parameterised case's values, and for the file or module its classname names. When the CI doc's Results file of a run works, look for its identity in the newest default-branch results file as well. When no test produces the identity, find the commit on the default branch that removed or renamed the test, such as with `git log -S '<name>' -- <test paths>`. Comment that commit on the record, with the test's new identity when it was renamed, ending with a `test-gone` marker. Take off the quarantine label when it has one, and close the record. Close a record only on such a commit. A test that is missing with no commit removing it may live on a branch not yet merged, so its record stays open and goes in the report.
 
-**Apply quarantine expiry.** For each open record that carries the quarantine label, find its [quarantine start](#quarantine-start) and its age in whole days.
+**Apply quarantine expiry.** For each open record that carries the quarantine label, compare when the label last went on with when the record last closed, from its events. A label that went on before the last close is left from a quarantine that ended at that close, and a person has reopened the record since. The verdict script no longer counts it as quarantine. Take the label off, and comment that quarantine ended when the record closed on that date, ending with an `expired` marker holding `quarantined_since`. For each other record, find its [quarantine start](#quarantine-start) and its age in whole days.
 
 - **23 to 29 days.** Warn once per quarantine, so skip a record whose comments already hold an `expiry-warning` marker with this start. Comment the date quarantine ends, any [open PR](#open-prs) for the record, and the findings so far from earlier comments, ending with an `expiry-warning` marker holding `quarantined_since`. Then take off the ready-for-agent label, both the name the script writes and the mapped one, and add `ready-for-human`. A person who hands the record back to the agent gets no second warning for the same quarantine.
 - **30 days or more.** Take the quarantine label off. Comment that quarantine ended 30 days after it started, so the test's failures fail the build again, and that its occurrences from the last 30 days still count, so its next one can quarantine it again. When the record has no warning for this start, as when the routine missed those days, add what the warning gives too. End the comment with an `expired` marker holding `quarantined_since`. When the record lacks `ready-for-human`, swap the ready-for-agent label for it, as the warning does.
 
-Done when no two records with the flaky label share a title, every open record's test has been looked for, and every open quarantined record has its start, with the warning or expiry its age calls for applied.
+Done when no two records with the flaky label share a title and an identity, every open record's test has been looked for, no open record keeps a quarantine label from before its last close, and every open quarantined record has its start, with the warning or expiry its age calls for applied.
 
 ## 4. Build the queue
 
@@ -115,7 +115,7 @@ The fix PR's own CI runs the verdict script as every PR does. A flake occurrence
 
 ## Quarantine start
 
-A record's quarantine started when the quarantine label last went on it. The tracker logs every label change with its time, whoever made it, the verdict script or a person. So the start is the newest event in the record's [label events](#tracker-reads) that added the quarantine label, on GitHub and GitLab alike. The occurrences can't stand in for it, because a person can add the label by hand, and the cap can keep a qualifying test out of quarantine for days.
+A record's quarantine started when the quarantine label last went on it. The tracker logs every label change with its time, whoever made it, the verdict script or a person. So the start is the newest of the record's [events](#tracker-reads) that added the quarantine label, on GitHub and GitLab alike. The occurrences can't stand in for it, because a person can add the label by hand, and the cap can keep a qualifying test out of quarantine for days.
 
 When no event added the label, as on a record moved from another project, the start is the `quarantined_since` of the record's newest `quarantine-start` marker. With no such marker, comment one dated with the run's time, so the 30 days count from this run.
 
@@ -123,7 +123,7 @@ A quarantine's age is the whole days from its start to the run's time. It ends a
 
 ## Occurrence count
 
-A record's occurrences are the `verdict-occurrence` markers in its comments, read as the script's header says: a line matching `^<!-- verdict-occurrence (\{.*\}) -->$` whose group parses as JSON. Its occurrence count is the number the script counts toward quarantine. That takes the occurrences from the last one holding `"reopened":true` on, keeps those dated no more than 30 days before the run's time, and counts each `run` once. Its newest occurrence is the latest `date` among all its markers.
+A record's occurrences are the `verdict-occurrence` markers in its comments, read as the script's header says: a line matching `^<!-- verdict-occurrence (\{.*\}) -->$` whose group parses as JSON. Its occurrence count is the number the script counts toward quarantine. That takes the occurrences dated after the record last closed, from the last one holding `"reopened":true` on, keeps those dated no more than 30 days before the run's time, and counts each `run` once. Its newest occurrence is the latest `date` among all its markers.
 
 ## Open PRs
 
@@ -164,7 +164,7 @@ On GitHub:
 
 - **Every record**: `gh api --paginate "repos/<owner>/<repo>/issues?labels=<flaky label>&state=all&per_page=100" --jq '.[] | select(.pull_request | not) | {number, title, state, labels: [.labels[].name], url: .html_url, body}'`. `state` is `open` or `closed`.
 - **A record's comments**: `gh api --paginate "repos/<owner>/<repo>/issues/<number>/comments?per_page=100" --jq '.[] | {created_at, body}'`, oldest first.
-- **A record's label events**: `gh api --paginate "repos/<owner>/<repo>/issues/<number>/events?per_page=100" --jq '.[] | select(.event == "labeled") | {label: .label.name, created_at}'`. Each one added the label it names, at `created_at`.
+- **A record's events**: `gh api --paginate "repos/<owner>/<repo>/issues/<number>/events?per_page=100" --jq '.[] | select(.event == "labeled" or .event == "closed") | {event, label: .label.name, created_at}'`. A `labeled` event added the label it names, and a `closed` event closed the record, each at `created_at`.
 - **Open PRs**: `gh pr list -R <owner>/<repo> --state open --limit 1000 --json number,title,body,url`.
 - **A PR's state**: `gh pr view <url> --json state`, which is `OPEN`, `CLOSED` or `MERGED`.
 
@@ -172,6 +172,6 @@ On GitLab:
 
 - **Every record**: `glab api --paginate "projects/:id/issues?labels=<flaky label>&state=all&per_page=100"`. Each issue's `iid` is the record number, beside `title`, `state` (`opened` or `closed`), `labels`, `web_url` and `description`.
 - **A record's comments**: `glab api --paginate "projects/:id/issues/<iid>/notes?sort=asc&order_by=created_at&per_page=100"`. Skip each note whose `system` is true, which GitLab writes for label and state changes.
-- **A record's label events**: `glab api --paginate "projects/:id/issues/<iid>/resource_label_events?per_page=100"`. An event whose `action` is `add` added the label in `label.name`, at `created_at`.
+- **A record's events**: two reads. `glab api --paginate "projects/:id/issues/<iid>/resource_label_events?per_page=100"` gives its label events, where one whose `action` is `add` added the label in `label.name`, at `created_at`. `glab api --paginate "projects/:id/issues/<iid>/resource_state_events?per_page=100"` gives its state events, where one whose `state` is `closed` closed the record, at `created_at`.
 - **Open PRs**: `glab api --paginate "projects/:id/merge_requests?state=opened&per_page=100"`, with `iid`, `title`, `description` and `web_url`.
 - **A PR's state**: `glab api "projects/:id/merge_requests/<iid>"`, whose `state` is `opened`, `closed` or `merged`.
