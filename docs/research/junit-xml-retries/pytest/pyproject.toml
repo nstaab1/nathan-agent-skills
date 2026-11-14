@@ -1,0 +1,11 @@
+[project]
+name = "junit-retries-pytest"
+version = "0"
+requires-python = ">=3.14"
+dependencies = [
+    "pytest==9.2.0",
+    "pytest-rerunfailures==16.7",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

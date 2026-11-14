@@ -50,6 +50,9 @@
       "linked": true,
       "status": "modified"
     },
+    "engineering/auditing-tests": {
+      "source": null
+    },
     "engineering/code-comprehension": {
       "source": null
     },
@@ -59,7 +62,7 @@
       "upstreamSha": "0b6cee10f260a2e048279cf737bfd3e37b1fce0b",
       "vendorCommit": "1fe572dde69a06e4fb583126e829d2b84408b667",
       "linked": true,
-      "status": "modified"
+      "status": "verbatim"
     },
     "engineering/codebase-design": {
       "source": "mattpocock",
@@ -84,6 +87,9 @@
       "vendorCommit": "1fe572dde69a06e4fb583126e829d2b84408b667",
       "linked": true,
       "status": "verbatim"
+    },
+    "engineering/fixing-flaky-tests": {
+      "source": null
     },
     "engineering/grill-with-docs": {
       "source": "mattpocock",
@@ -125,6 +131,9 @@
       "linked": true,
       "status": "verbatim"
     },
+    "engineering/ns-code-review": {
+      "source": null
+    },
     "engineering/ns-implement-1-0-0": {
       "source": null
     },
@@ -165,6 +174,9 @@
       "vendorCommit": "1fe572dde69a06e4fb583126e829d2b84408b667",
       "linked": true,
       "status": "verbatim"
+    },
+    "engineering/reviewing-ci-run-times": {
+      "source": null
     },
     "engineering/setup-agent-skills": {
       "source": "mattpocock",
