@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runVerdict, runVerdictWith, junit, passed, failed, errored, skipped, lineAbout } from './harness.mjs';
+import { runVerdict, runVerdictWith, junit, passed, failed, errored, skipped, lineAbout, codeSpans } from './harness.mjs';
 
 // The failures this guards: a build that passes when a test command crashed or
 // a rerun went missing, and a build that fails when the only problem was a
@@ -150,6 +150,22 @@ test('test identity is classname plus name, copied verbatim from the file', asyn
   assert.notEqual(code, 0);
   assert.match(lineAbout(summary, `tests/shapes.spec.js ${name}`), /flake occurrence/i);
   assert.match(lineAbout(summary, `tests/other.spec.js ${name}`), /failed on both attempts/i);
+});
+
+test('the run summary gives a test name holding backticks as inline code that reads back exactly', async () => {
+  const flaky = ['spec/view.spec.ts', 'renders `x`'];
+  const broken = ['spec/view.spec.ts', '``keeps`` state'];
+  const { code, summary } = await runVerdict({
+    testRuns: [
+      { exit: 1, xml: junit(failed(...flaky), failed(...broken)) },
+      { exit: 1, xml: junit(passed(...flaky), failed(...broken)) },
+    ],
+  });
+  assert.notEqual(code, 0);
+  for (const [classname, name] of [flaky, broken]) {
+    const line = lineAbout(summary, name);
+    assert.ok(codeSpans(line).includes(`${classname} ${name}`), line);
+  }
 });
 
 test('the rerun exits non-zero with no failed test in its results file: the build fails as a crash', async () => {

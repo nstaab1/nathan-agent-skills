@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// verdict.mjs version 0.5.0
+// verdict.mjs version 0.6.0
 //
 // The verdict script. It runs a CI job's test command, reruns the failures
 // once, records each flake occurrence on the test's flaky-test record in the
@@ -453,7 +453,7 @@ const judge = (settings) => {
 
   for (const { identity } of failures) {
     const rerun = results2?.get(identity.key);
-    const test = `\`${identity.title}\``;
+    const test = inlineCode(identity.title);
     if (rerun?.outcome === 'passed') {
       occurrences.push(identity);
     } else if (rerun?.outcome === 'failed') {
@@ -932,7 +932,7 @@ const recordOccurrences = async (settings, records, identities, quarantine) => {
       }
     } else if (qualifies(count)) {
       quarantine.capped.push(
-        `The quarantine cap kept \`${identity.title}\` ([#${record.number}](${record.url})) out of quarantine: ${plural(quarantine.count, 'test is', 'tests are')} already quarantined, and the cap allows ${quarantine.explained}. Its failures still fail the build until a quarantined test is fixed or the cap is raised.`,
+        `The quarantine cap kept ${inlineCode(identity.title)} ([#${record.number}](${record.url})) out of quarantine: ${plural(quarantine.count, 'test is', 'tests are')} already quarantined, and the cap allows ${quarantine.explained}. Its failures still fail the build until a quarantined test is fixed or the cap is raised.`,
       );
       said.push('Not quarantined: the quarantine cap is reached, as the warning above says.');
     }
@@ -997,7 +997,7 @@ const summary = [
     : []),
   ...[...buildFailures, ...unread, ...ignored].map((line) => `- ${line}`),
   ...occurrences.map(
-    (identity, i) => `- Flake occurrence: \`${identity.title}\` failed on attempt 1 and passed on attempt 2. ${recorded[i]}`,
+    (identity, i) => `- Flake occurrence: ${inlineCode(identity.title)} failed on attempt 1 and passed on attempt 2. ${recorded[i]}`,
   ),
   '',
 ].join('\n');

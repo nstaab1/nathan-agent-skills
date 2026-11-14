@@ -149,6 +149,23 @@ export const runVerdictWith = async (args) => {
 export const lineAbout = (summary, text) =>
   summary.split('\n').find((line) => line.includes(text)) ?? '';
 
+// The text each code span in a line of Markdown holds, read by CommonMark's
+// rules: a run of backticks opens a span that the next run of the same length
+// closes, and one space comes off each end of text that starts and ends with
+// one, unless it is all spaces.
+export const codeSpans = (line) => {
+  const runs = [...line.matchAll(/`+/g)];
+  const spans = [];
+  for (let i = 0; i < runs.length; i += 1) {
+    const close = runs.findIndex((run, j) => j > i && run[0].length === runs[i][0].length);
+    if (close === -1) continue;
+    const inner = line.slice(runs[i].index + runs[i][0].length, runs[close].index);
+    spans.push(/^ [\s\S]* $/.test(inner) && /[^ ]/.test(inner) ? inner.slice(1, -1) : inner);
+    i = close;
+  }
+  return spans;
+};
+
 // The settings that point the script at a fake tracker, as one CI job.
 export const recordingTo = (tracker, { branch = 'feature/cart', job = 'test', run = '4242' } = {}) => ({
   flags: [

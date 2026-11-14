@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runVerdict, runVerdictWith, junit, passed, failed, lineAbout, recordingTo, trackerTest, gitlab, suite, earlier, daysAgo } from './harness.mjs';
+import { runVerdict, runVerdictWith, junit, passed, failed, lineAbout, codeSpans, recordingTo, trackerTest, gitlab, suite, earlier, daysAgo } from './harness.mjs';
 
 // The failures this guards: a quarantined test that still fails the build; a
 // failure let through by a quarantine read from a closed record, or from a
@@ -232,6 +232,20 @@ trackerTest('the cap stops a quarantine once 5% of the suite is quarantined, and
       assert.match(line, /not quarantined/i);
     },
   ));
+
+trackerTest('the cap warning gives a test name holding backticks as inline code that reads back exactly', ({ withTracker }) => {
+  const test = ['spec/view.spec.ts', 'renders `x`'];
+  const title = test.join(' ');
+  return withTracker({ records: [{ title, comments: twoOccurrences() }] }, async (tracker) => {
+    const { code, summary, output } = await runVerdict({
+      ...suite({ size: 19, flaky: [test] }),
+      ...recordingTo(tracker, { branch: 'feature/cart' }),
+    });
+    assert.equal(code, 0, output);
+    const warning = lineAbout(summary, 'quarantine cap kept');
+    assert.ok(codeSpans(warning).includes(title), warning);
+  });
+});
 
 trackerTest('a flake occurrence of a quarantined test is recorded, and the summary says it is already quarantined', ({ withTracker }) =>
   withTracker(
