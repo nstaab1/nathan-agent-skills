@@ -10,7 +10,12 @@
 // the JOB-TOKEN header, that may list issues and do nothing else, as one
 // granted the fine-grained Read work items permission can. `refuse` picks
 // other requests to refuse with 403: it is given each request's
-// { method, path, action } and returns true to refuse it.
+// { method, path, action } and returns true to refuse it. Like GitLab, it
+// logs an issue's resource state events, each close and reopen, and its
+// resource label events, each label added and removed, with their times, and
+// a job token can read neither. A record given to start with may give its
+// earlier `history`, as { action, label, date }, where action is closed,
+// reopened, labeled or unlabeled.
 //
 // Its `records` view and each logged request's `action` read the same as
 // fake-github.mjs's, so one test can check either tracker.
@@ -30,16 +35,47 @@ export const startFakeGitLab = async ({
   const issues = [];
   const requests = [];
   let noteIds = 0;
+  let eventIds = 0;
   let base;
+
+  const STATES = { closed: 'closed', reopened: 'reopened' };
+  const LABEL_ACTIONS = { labeled: 'add', unlabeled: 'remove' };
+  const now = () => new Date().toISOString();
+  const stateEvent = (state, date = now()) => ({ id: ++eventIds, state, created_at: date, resource_type: 'Issue' });
+  const labelEvent = (action, label, date = now()) => ({
+    id: ++eventIds,
+    action,
+    label: { name: label },
+    created_at: date,
+    resource_type: 'Issue',
+  });
 
   const note = (body, system = false) => {
     const id = ++noteIds;
     return { id, body, system, created_at: new Date(Date.UTC(2026, 0, 1) + id * 1000).toISOString() };
   };
-  const addIssue = ({ title, body = '', state = 'open', labels = ['flaky-test'], comments = [] }) => {
-    const issue = { iid: issues.length + 1, title, description: body, state: OPEN[state], labels: [...labels], notes: comments.map((each) => note(each)) };
+  const addIssue = ({ title, body = '', state = 'open', labels = ['flaky-test'], comments = [], history = [] }) => {
+    const issue = {
+      iid: issues.length + 1,
+      title,
+      description: body,
+      state: OPEN[state],
+      labels: [...labels],
+      notes: comments.map((each) => note(each)),
+      stateEvents: history.filter(({ action }) => STATES[action]).map(({ action, date }) => stateEvent(STATES[action], date)),
+      labelEvents: history
+        .filter(({ action }) => LABEL_ACTIONS[action])
+        .map(({ action, label, date }) => labelEvent(LABEL_ACTIONS[action], label, date)),
+    };
     issues.push(issue);
     return issue;
+  };
+
+  // Sets an issue's labels, logging a label event for each change.
+  const relabel = (issue, labels) => {
+    for (const label of labels) if (!issue.labels.includes(label)) issue.labelEvents.push(labelEvent('add', label));
+    for (const label of issue.labels) if (!labels.includes(label)) issue.labelEvents.push(labelEvent('remove', label));
+    issue.labels = [...labels];
   };
   for (const record of records) addIssue(record);
 
@@ -100,6 +136,8 @@ export const startFakeGitLab = async ({
   // What a request asks the tracker to do, in the words fake-github.mjs uses.
   const actionOf = (method, iid, sub, body) => {
     if (sub === 'notes') return { GET: 'list comments', POST: 'add comment' }[method];
+    if (sub === 'resource_state_events') return { GET: 'list state events' }[method];
+    if (sub === 'resource_label_events') return { GET: 'list label events' }[method];
     if (sub) return undefined;
     if (!iid) return { GET: 'list records', POST: 'create record' }[method];
     if (method !== 'PUT' || !body) return undefined;
@@ -159,7 +197,8 @@ export const startFakeGitLab = async ({
     }
     if (!iid && req.method === 'POST') {
       if (!body?.title) return send(res, 400, { error: 'title is missing' });
-      const created = addIssue({ title: body.title, body: body.description ?? '', labels: labelList(body.labels ?? '') });
+      const created = addIssue({ title: body.title, body: body.description ?? '', labels: [] });
+      relabel(created, labelList(body.labels ?? ''));
       return send(res, 201, issueJson(created));
     }
     if (!sub && req.method === 'PUT') {
@@ -170,15 +209,17 @@ export const startFakeGitLab = async ({
       if (body.state_event === 'reopen' && issue.state === 'closed') {
         issue.state = 'opened';
         issue.notes.push(note('reopened', true));
+        issue.stateEvents.push(stateEvent('reopened'));
       }
       if (body.state_event === 'close' && issue.state === 'opened') {
         issue.state = 'closed';
         issue.notes.push(note('closed', true));
+        issue.stateEvents.push(stateEvent('closed'));
       }
-      if (body.labels !== undefined) issue.labels = labelList(body.labels);
-      for (const label of labelList(body.add_labels ?? '')) if (!issue.labels.includes(label)) issue.labels.push(label);
+      let labels = body.labels !== undefined ? labelList(body.labels) : issue.labels;
+      labels = [...labels, ...labelList(body.add_labels ?? '').filter((label) => !labels.includes(label))];
       const removed = labelList(body.remove_labels ?? '');
-      issue.labels = issue.labels.filter((label) => !removed.includes(label));
+      relabel(issue, labels.filter((label) => !removed.includes(label)));
       return send(res, 200, issueJson(issue));
     }
     if (sub === 'notes' && req.method === 'GET') {
@@ -189,6 +230,12 @@ export const startFakeGitLab = async ({
         return send(res, 400, { error: 'order_by does not have a valid value' });
       }
       return sendPage(res, url, sorted(issue.notes, url, 'created_at').map((each) => noteJson(issue, each)));
+    }
+    if (sub === 'resource_state_events' && req.method === 'GET') {
+      return sendPage(res, url, issue.stateEvents);
+    }
+    if (sub === 'resource_label_events' && req.method === 'GET') {
+      return sendPage(res, url, issue.labelEvents);
     }
     if (sub === 'notes' && req.method === 'POST') {
       if (!body?.body) return send(res, 400, { error: 'body is missing' });

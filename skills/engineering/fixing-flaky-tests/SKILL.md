@@ -1,9 +1,9 @@
 ---
 name: fixing-flaky-tests
-description: "Flaky tests: wire a repo's CI with the verdict script, which reruns failed tests, records flake occurrences on flaky-test records and quarantines tests by label, and run the scheduled agent that works the records into fix PRs. Use when the user wants flaky tests tracked, quarantined or fixed, the verdict script wired or updated, or a scheduled flaky-test agent run."
+description: "Flaky tests: wire the verdict script into a repo's CI, or run the scheduled flaky-test agent. Use when the user wants flaky tests tracked, quarantined or fixed, the verdict script wired or updated, or a scheduled flaky-test agent run."
 ---
 
-A **flaky test** failed and passed on the same commit with no code change. This skill stops flaky tests blocking a repo's builds and gets them fixed. Its **verdict script**, [scripts/verdict.mjs](scripts/verdict.mjs), runs in the CI test job. It runs the test command, reruns the failures once, records each **flake occurrence** on the test's **flaky-test record** in the issue tracker, and decides whether the build passes. A test whose open record carries the quarantine label is in **quarantine**: it still runs, and its failures don't fail the build.
+A **flaky test** failed and passed on the same commit with no code change. This skill stops flaky tests blocking a repo's builds and gets them fixed. Its **verdict script**, [scripts/verdict.mjs](scripts/verdict.mjs), runs in the CI test job. It runs the test command, reruns the failures once, records each **flake occurrence** on the test's **flaky-test record** in the issue tracker, and decides whether the build passes. A test whose open record carries the quarantine label is in **quarantine**. It still runs, and its failures don't fail the build.
 
 The script's header is the reference for everything the script does: its flags, the trackers it supports and the settings each one takes, its decision, how it records and quarantines, and its run summary. Read it before wiring or updating a repo, and take every flag and setting from it.
 
@@ -19,7 +19,7 @@ The verdict script keeps flaky-test records on a hosted tracker, through the tra
 
 Find each CI doc field by its heading. A field that reads `None.` isn't set up.
 
-- `## CI provider`: the provider and where its config lives. `None.` means the repo has no CI to wire: tell the developer so, and stop.
+- `## CI provider`: the provider and where its config lives. `None.` means the repo has no CI to wire, so tell the developer so, and stop.
 - `## Test command`: the command, and for each test job its **Job**, **Step** and **Results file**.
 - `## Rerun-failures command`.
 - `## Verdict script`: **Location** and **Version**.
@@ -33,10 +33,10 @@ Done when the tracker is known to be one the script supports and every field abo
 
 List the tracker's labels and create each one it lacks:
 
-- The Flaky label, described as "A flaky-test record: one test's flake occurrences, recorded by the verdict script."
-- The Quarantine label, described as "Quarantine: the test still runs, and its failures don't fail the build."
+- The Flaky label, described as "A flaky-test record, holding one test's flake occurrences as the verdict script records them."
+- The Quarantine label, described as "A quarantined test still runs, and its failures don't fail the build."
 - `ready-for-agent`, which the script puts on every new record by that exact name. When `docs/agents/triage-labels.md` maps the `ready-for-agent` role to another label, tell the developer that new records will carry `ready-for-agent` anyway.
-- The `ready-for-human` role's label, which the scheduled agent puts on a record it hands to a person: the label `docs/agents/triage-labels.md` maps that role to, or `ready-for-human` when the file is absent.
+- The `ready-for-human` role's label, which the scheduled agent puts on a record it hands to a person. That is the label `docs/agents/triage-labels.md` maps the role to, or `ready-for-human` when the file is absent.
 
 On GitHub, list with `gh label list -R <owner>/<repo> --limit 1000 --json name` and create with `gh label create "<name>" -R <owner>/<repo> --description "<description>"`. On GitLab, list from the repo's checkout with `glab api "projects/:id/labels?per_page=100" --paginate`, which includes the labels the project takes from its groups, and create with `glab label create --name "<name>" --description "<description>" -R <group>/<project>`. Elsewhere, use the tracker's own way.
 
@@ -89,11 +89,11 @@ Done when the PR is open.
 
 End with:
 
-- The wiring or update PR's link, or that the repo is wired with an up-to-date copy and its version. A PR's test jobs show whether the wiring works: each one's run summary starts with `### Verdict:`.
+- The wiring or update PR's link, or that the repo is wired with an up-to-date copy and its version. When the wiring works, the run summary of each of the PR's test jobs starts with `### Verdict:`.
 - The labels created.
 - Each finding of step 3.
 - Each identity that more than one test shares, from step 4.
-- When `## Scheduled agents` has no `fixing-flaky-tests` line, that the scheduled flaky-test agent isn't set up. Nothing works the open records, and quarantine never expires, since the script never takes the label off an open record. Give the developer [the daily routine](#the-daily-routine) to create.
+- When `## Scheduled agents` has no `fixing-flaky-tests` line, that the scheduled flaky-test agent isn't set up. Nothing works the open records, and quarantine never expires, since only the agent ends a quarantine at 30 days. Give the developer [the daily routine](#the-daily-routine) to create.
 
 ## The scheduled flaky-test agent
 

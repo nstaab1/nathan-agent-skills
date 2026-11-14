@@ -42,6 +42,42 @@ export const junit = (...testcases) =>
     '',
   ].join('\n');
 
+// Test command runs over a suite of `size` tests, in which each `flaky` test
+// fails on attempt 1 and passes on attempt 2, each `broken` test fails on both
+// attempts, and the rest pass. A test is [classname, name].
+export const suite = ({ size = 40, flaky = [], broken = [] }) => {
+  const others = Array.from({ length: size - flaky.length - broken.length }, (_, i) =>
+    passed('tests.test_other', `test_${i}`),
+  );
+  const failing = broken.map((test) => failed(...test));
+  return {
+    testRuns: [
+      { exit: 1, xml: junit(...others, ...flaky.map((test) => failed(...test)), ...failing) },
+      { exit: failing.length ? 1 : 0, xml: junit(...others, ...flaky.map((test) => passed(...test)), ...failing) },
+    ],
+  };
+};
+
+// The time `days` days before now, in UTC to the second, as the script and
+// the trackers write times.
+const DAY_MS = 24 * 60 * 60 * 1000;
+export const daysAgo = (days) => new Date(Date.now() - days * DAY_MS).toISOString().replace(/\.\d+Z$/, 'Z');
+
+// An earlier flake occurrence as the comment the script writes, in the marker
+// format the script's header documents, from `daysAgo` days before now. Each
+// gets a run of its own unless given one.
+let runs = 1000;
+export const earlier = ({ daysAgo: days = 1, branch = 'main', job = 'test', run = String(++runs), reopened } = {}) => {
+  const date = daysAgo(days);
+  const run_url = `https://ci.example/acme/shop/runs/${run}`;
+  const data = { date, branch, job, run, run_url, ...(reopened && { reopened }) };
+  return [
+    'Flake occurrence: failed on attempt 1 and passed on attempt 2.',
+    '',
+    `<!-- verdict-occurrence ${JSON.stringify(data)} -->`,
+  ].join('\n');
+};
+
 const spawnAndWait = (file, args, options) =>
   new Promise((resolve, reject) => {
     const child = spawn(file, args, options);
