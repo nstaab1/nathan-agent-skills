@@ -391,6 +391,37 @@ trackerTest('two tests whose classname and name join to the same title each keep
     assert.match(tracker.records[1].body, /Name: `total`/);
   }));
 
+trackerTest('a test whose title is longer than the tracker allows gets a shortened title that a hash tells apart, and finds its record again', ({ withTracker }) =>
+  withTracker({}, async (tracker) => {
+    const long = (end) => ['tests.test_tax', `test_rate[${'x'.repeat(300)}-${end}]`];
+    const tests = [long('uk'), long('de')];
+    for (const run of ['1', '2']) {
+      const { code, output } = await runVerdict({ ...suite({ flaky: tests }), ...recordingTo(tracker, { run }) });
+      assert.equal(code, 0, output);
+    }
+    assert.equal(tracker.records.length, 2, 'one record per test');
+    assert.notEqual(tracker.records[0].title, tracker.records[1].title);
+    for (const [i, record] of tracker.records.entries()) {
+      assert.ok([...record.title].length <= { github: 256, gitlab: 255 }[tracker.kind], record.title);
+      assert.ok(record.body.includes(tests[i][1]), 'the body gives the whole name');
+      assert.deepEqual(occurrencesOn(record).map(({ run }) => run), ['1', '2']);
+    }
+  }));
+
+trackerTest('a test whose title holds a line break or a tab gets a stable title without it, and finds its record again', ({ withTracker }) =>
+  withTracker({}, async (tracker) => {
+    const tests = [['spec/view.spec.ts', 'renders\nacross lines'], ['spec/view.spec.ts', 'renders\tacross lines']];
+    for (const run of ['1', '2']) {
+      const { code, output } = await runVerdict({ ...suite({ flaky: tests }), ...recordingTo(tracker, { run }) });
+      assert.equal(code, 0, output);
+    }
+    assert.equal(tracker.records.length, 2, 'one record per test');
+    for (const record of tracker.records) {
+      assert.doesNotMatch(record.title, /[\n\t]/);
+      assert.deepEqual(occurrencesOn(record).map(({ run }) => run), ['1', '2']);
+    }
+  }));
+
 trackerTest('a test whose name holds backticks or starts and ends with a space finds its own record again', ({ withTracker }) =>
   withTracker({}, async (tracker) => {
     const tests = [['spec/view.spec.ts', '`render` keeps ``state``'], ['spec/view.spec.ts', ' padded ']];

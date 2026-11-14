@@ -118,19 +118,28 @@
 //                       number of tests, such as 12. Defaults to 5%.
 //
 // Recording a flake occurrence:
-//   1. Find the test's record: the issue carrying the flaky label whose title
-//      is exactly the test's identity as `<classname> <name>`, and whose body,
-//      when it gives a classname and name, gives the test's own. Two
-//      identities can share a title, such as "a b" plus "c" and "a" plus
-//      "b c", and the body tells their records apart. The script lists every
-//      issue with the flaky label, open and closed, once per job, and compares
-//      them itself. Search matches loosely, and GitHub's lags behind new
-//      issues, so a matrix job could miss a record created seconds earlier by
-//      another leg of the run.
-//   2. No record: create one with that title, labelled with the flaky label
-//      and ready-for-agent. Its body gives the identity in two lines,
-//      "- Classname: " and "- Name: ", each followed by the value as Markdown
-//      inline code, which reads back exactly by CommonMark's rules.
+//   1. Find the test's record: the issue carrying the flaky label whose body
+//      gives the test's classname and name, or, when its body gives none, as
+//      in a record a person wrote, whose title is the one step 2 gives the
+//      test. Two identities can share a title, such as "a b" plus "c" and "a"
+//      plus "b c", and the body tells their records apart. The script lists
+//      every issue with the flaky label, open and closed, once per job, and
+//      compares them itself. Search matches loosely, and GitHub's lags behind
+//      new issues, so a matrix job could miss a record created seconds
+//      earlier by another leg of the run.
+//   2. No record: create one, labelled with the flaky label and
+//      ready-for-agent. Its title is the test's identity as
+//      `<classname> <name>`, exactly as the results file gives it, when the
+//      tracker keeps that as it is: no longer than its limit, 256 characters
+//      on GitHub and 255 on GitLab, with no whitespace at either end, none
+//      but plain spaces inside, and no control character. Otherwise the title
+//      is a stand-in that stays the same from run to run: the identity with
+//      each run of whitespace and control characters made one space, cut to
+//      fit, then "… [", the first 12 hex digits of the SHA-256 of the JSON
+//      array [classname, name], and "]". Its body gives the identity in two
+//      lines, "- Classname: " and "- Name: ", each followed by the value as
+//      Markdown inline code, which reads back exactly by CommonMark's rules,
+//      unless the value holds a line break.
 //   3. An open record: read its history, when it last closed and when the
 //      quarantine label last went on it.
 //   4. A record that already holds an occurrence with this --run: leave it.
@@ -237,6 +246,7 @@
 // "Now quarantined", "Already quarantined" or "Not quarantined" when one of
 // those applies.
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { appendFileSync, readFileSync, rmSync } from 'node:fs';
 
 const USAGE =
@@ -329,8 +339,8 @@ const attributes = (text) => {
 };
 
 // A test's identity: its classname and name, verbatim. `key` tells any two
-// identities apart. `title` names the test in the run summary and titles its
-// flaky-test record, `<classname> <name>`.
+// identities apart. `title` names the test in the run summary, and titles its
+// flaky-test record when the tracker keeps it as it is, `<classname> <name>`.
 const identityOf = (classname, name) => ({
   classname,
   name,
@@ -680,7 +690,8 @@ const bearer = (token) => ({ authorization: `Bearer ${token}` });
 
 // Each tracker the script supports: the defaults of the flags whose default
 // depends on it, the variables its token is read from, the first one set
-// winning, with the headers each one is sent in, and its adapter.
+// winning, with the headers each one is sent in, its adapter, and the most
+// characters it takes in an issue's title.
 const TRACKERS = {
   github: {
     defaults: {
@@ -696,6 +707,7 @@ const TRACKERS = {
     },
     tokens: { VERDICT_TRACKER_TOKEN: bearer, GITHUB_TOKEN: bearer },
     adapter: githubTracker,
+    titleLimit: 256,
   },
   gitlab: {
     defaults: {
@@ -711,6 +723,7 @@ const TRACKERS = {
       CI_JOB_TOKEN: (token) => ({ 'job-token': token }),
     },
     adapter: gitlabTracker,
+    titleLimit: 255,
   },
 };
 
@@ -732,7 +745,8 @@ const flakyRecords = (settings, { tracker, list = [], problem }) => {
   // Open and carrying the quarantine label, which quarantines the record
   // unless its history shows the label went on before the record last closed.
   const labelled = (record) => record.open && record.labels.includes(settings.quarantineLabel);
-  const matching = (identity) => list.filter((record) => isRecordOf(record, identity));
+  const { titleLimit } = TRACKERS[settings.tracker];
+  const matching = (identity) => list.filter((record) => isRecordOf(record, identity, titleLimit));
   return {
     tracker,
     problem,
@@ -807,10 +821,28 @@ const identityIn = (body) => {
   return classname === undefined || name === undefined ? undefined : identityOf(classname, name);
 };
 
-// A record is a test's when its title is the test's title and its body, when
-// it gives an identity, gives the test's.
-const isRecordOf = (record, identity) =>
-  record.title === identity.title && (identityIn(record.body)?.key ?? identity.key) === identity.key;
+// The title of a test's record, on a tracker that takes `limit` characters.
+// A tracker refuses a longer title, and strips whitespace from a title's ends,
+// as GitLab does, or may rewrite other whitespace, such as a line break. So a
+// title it would refuse or rewrite gets a stand-in that stays the same from
+// run to run: the identity's title with each run of whitespace and control
+// characters made one space, cut to fit, then a hash of the identity, which
+// tells apart two tests the cut leaves alike.
+const recordTitle = (identity, limit) => {
+  const { title } = identity;
+  if ([...title].length <= limit && !/^\s|\s$|[^\S ]|\p{Cc}/u.test(title)) return title;
+  const suffix = `… [${createHash('sha256').update(identity.key).digest('hex').slice(0, 12)}]`;
+  const readable = [...title.replace(/[\s\p{Cc}]+/gu, ' ').trim()];
+  return `${readable.slice(0, limit - suffix.length).join('').trimEnd()}${suffix}`;
+};
+
+// A record is a test's when its body gives the test's identity, or, when it
+// gives none, as in a record a person wrote or one whose name holds a line
+// break, when its title is the one recordTitle gives the test.
+const isRecordOf = (record, identity, titleLimit) => {
+  const given = identityIn(record.body);
+  return given ? given.key === identity.key : record.title === recordTitle(identity, titleLimit);
+};
 
 // The JSON in a marker escapes <, > and &, so no value can close the HTML
 // comment early.
@@ -925,7 +957,7 @@ const recordOccurrences = async (settings, records, identities, quarantine) => {
       }
     } else {
       record = await tracker.createRecord({
-        title: identity.title,
+        title: recordTitle(identity, TRACKERS[settings.tracker].titleLimit),
         body: recordBody(identity),
         labels: [settings.flakyLabel, 'ready-for-agent'],
       });

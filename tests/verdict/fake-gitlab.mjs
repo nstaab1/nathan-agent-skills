@@ -3,8 +3,10 @@
 // its issues in memory and logs every request it receives. Like GitLab, it
 // names a project by its URL-encoded path or its ID, lists issues and notes
 // newest first unless asked otherwise, pages lists through the Link header,
-// adds a system note when an issue closes or reopens, answers a bad parameter
-// with 400, and refuses a wrong token with 401. It takes an access token in
+// adds a system note when an issue closes or reopens, strips whitespace from
+// both ends of a new issue's title and refuses one longer than 255
+// characters, answers a bad parameter with 400, and refuses a wrong token with
+// 401. It takes an access token in
 // the PRIVATE-TOKEN header or as a bearer token. When readOnly, it refuses
 // every write with 403. `jobToken`, when given, is a CI/CD job token, sent in
 // the JOB-TOKEN header, that may list issues and do nothing else, as one
@@ -196,8 +198,11 @@ export const startFakeGitLab = async ({
       return sendPage(res, url, sorted(found, url, 'iid').map(issueJson));
     }
     if (!iid && req.method === 'POST') {
-      if (!body?.title) return send(res, 400, { error: 'title is missing' });
-      const created = addIssue({ title: body.title, body: body.description ?? '', labels: [] });
+      // GitLab strips a title as Ruby's String#strip does.
+      const title = String(body?.title ?? '').replace(/^[\0\t\n\v\f\r ]+|[\0\t\n\v\f\r ]+$/g, '');
+      if (!title) return send(res, 400, { error: 'title is missing' });
+      if ([...title].length > 255) return send(res, 400, { message: { title: ['is too long (maximum is 255 characters)'] } });
+      const created = addIssue({ title, body: body.description ?? '', labels: [] });
       relabel(created, labelList(body.labels ?? ''));
       return send(res, 201, issueJson(created));
     }

@@ -1,7 +1,8 @@
 // A fake GitHub issue tracker for the verdict script's tests: an HTTP server
 // on localhost that answers the REST endpoints the script calls, keeps its
 // issues in memory and logs every request it receives. Like GitHub, it pages
-// lists through the Link header, refuses a wrong token with 401 and, when
+// lists through the Link header, refuses a wrong token with 401, refuses a new
+// issue whose title is longer than 256 characters with 422 and, when
 // readOnly, refuses every write with 403, as GitHub does for a fork PR's token.
 // `refuse` picks other requests to refuse with 403: it is given each request's
 // { method, path, action } and returns true to refuse it. Like GitHub, it logs
@@ -134,6 +135,12 @@ export const startFakeGitHub = async ({
       return sendPage(res, url, found.map(issueJson));
     }
     if (!number && req.method === 'POST') {
+      if ([...body.title].length > 256) {
+        return send(res, 422, {
+          message: 'Validation Failed',
+          errors: [{ resource: 'Issue', code: 'custom', field: 'title', message: 'title is too long (maximum is 256 characters)' }],
+        });
+      }
       const created = addIssue({ title: body.title, body: body.body, labels: [] });
       change(created, { labels: body.labels ?? [] });
       return send(res, 201, issueJson(created));
