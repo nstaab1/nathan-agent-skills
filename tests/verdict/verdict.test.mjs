@@ -42,6 +42,25 @@ test('a test fails then passes when the whole command reruns: the build passes a
   assert.match(lineAbout(summary, 'tests.test_cart test_checkout_total'), /flake occurrence/i);
 });
 
+test('a test that passes attempt 1 and fails when the whole command reruns leaves the verdict as it is, and the summary names it', async () => {
+  const { code, summary, output } = await runVerdict({
+    testRuns: [
+      {
+        exit: 1,
+        xml: junit(failed('tests.test_cart', 'test_checkout_total'), passed('tests.test_tax', 'test_vat_rounding')),
+      },
+      {
+        exit: 1,
+        xml: junit(passed('tests.test_cart', 'test_checkout_total'), failed('tests.test_tax', 'test_vat_rounding')),
+      },
+    ],
+  });
+  assert.equal(code, 0, output);
+  assert.match(summary, /verdict: pass/i);
+  assert.match(lineAbout(summary, 'tests.test_cart test_checkout_total'), /flake occurrence/i);
+  assert.match(lineAbout(summary, 'tests.test_tax test_vat_rounding'), /failed only on the rerun/i);
+});
+
 test('a test fails on both attempts: the build fails and the summary names it', async () => {
   const xml = junit(passed('tests.test_cart', 'test_add_item'), failed('tests.test_cart', 'test_checkout_total'));
   const { code, summary } = await runVerdict({

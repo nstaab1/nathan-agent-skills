@@ -32,7 +32,9 @@
 //      given, the whole test command otherwise.
 //   4. For each test that failed in attempt 1: passed in attempt 2 is a flake
 //      occurrence and doesn't fail the build. Failed again, skipped or left
-//      out of attempt 2 fails it, unless the test is quarantined.
+//      out of attempt 2 fails it, unless the test is quarantined. A test that
+//      passed attempt 1 and failed attempt 2, as a whole-command rerun can
+//      show, changes neither, and the run summary names it.
 //   5. An attempt that writes no readable results file fails the build, and
 //      so does a rerun that exits non-zero with no failed test.
 //
@@ -216,15 +218,17 @@
 // heading; then, when the cap kept a test out of quarantine, a "> [!WARNING]"
 // block saying so for each such test; then one bullet per reason the build
 // fails, one saying the quarantine list was not read when that left a failure
-// standing, one per failure ignored because its test is quarantined, and one
-// per flake occurrence. A failure whose record carries a quarantine label left
-// from before it last closed says so, and so does an ignored failure whose
-// record's history couldn't be read. An occurrence's bullet names the test as
-// `<classname> <name>`, then links the record it was recorded on, or says why
-// it was not recorded. A recorded occurrence's bullet then gives its count
-// toward quarantine, such as "Quarantine count: 2 occurrences on 1 branch in
-// 30 days (it takes 3 on at least 2).", and ends "Now quarantined",
-// "Already quarantined" or "Not quarantined" when one of those applies.
+// standing, one per failure ignored because its test is quarantined, one per
+// flake occurrence, and one per test that passed attempt 1 and failed attempt
+// 2, beginning "Failed only on the rerun". A failure whose record carries a
+// quarantine label left from before it last closed says so, and so does an
+// ignored failure whose record's history couldn't be read. An occurrence's
+// bullet names the test as `<classname> <name>`, then links the record it was
+// recorded on, or says why it was not recorded. A recorded occurrence's bullet
+// then gives its count toward quarantine, such as "Quarantine count: 2
+// occurrences on 1 branch in 30 days (it takes 3 on at least 2).", and ends
+// "Now quarantined", "Already quarantined" or "Not quarantined" when one of
+// those applies.
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, readFileSync, rmSync } from 'node:fs';
 
@@ -416,12 +420,16 @@ const exitOf = ({ status, signal, error }) => {
 // Runs the attempts and returns the reasons the build fails; the tests that
 // failed attempt 1 and didn't pass attempt 2, each as { identity, failure },
 // the sentence saying so, which fail the build unless quarantined; and the
-// identities of the tests with a flake occurrence, which don't fail it. Also
-// the size of the suite: how many tests attempt 1's results file holds.
+// identities of the tests with a flake occurrence, which don't fail it; and
+// the identities of the tests that passed attempt 1 and failed attempt 2,
+// which neither fail it nor count as flake occurrences, and which the run
+// summary names. Also the size of the suite: how many tests attempt 1's
+// results file holds.
 const judge = (settings) => {
   const buildFailures = [];
   const stillFailing = [];
   const occurrences = [];
+  const failedOnRerun = [];
 
   const attempt1 = runAttempt(settings.results, settings.command);
   const results1 = readResults(settings.results);
@@ -429,7 +437,7 @@ const judge = (settings) => {
     buildFailures.push(
       `Attempt 1 wrote no readable results file at \`${settings.results}\`, and the test command ${exitOf(attempt1)}.`,
     );
-    return { buildFailures, stillFailing, occurrences, suite: 0 };
+    return { buildFailures, stillFailing, occurrences, failedOnRerun, suite: 0 };
   }
 
   const suite = results1.size;
@@ -438,7 +446,7 @@ const judge = (settings) => {
     if (attempt1.status !== 0) {
       buildFailures.push(`The test command ${exitOf(attempt1)} with no failed test in the results file.`);
     }
-    return { buildFailures, stillFailing, occurrences, suite };
+    return { buildFailures, stillFailing, occurrences, failedOnRerun, suite };
   }
 
   const attempt2 = runAttempt(settings.results, settings.rerun || settings.command);
@@ -465,7 +473,10 @@ const judge = (settings) => {
       });
     }
   }
-  return { buildFailures, stillFailing, occurrences, suite };
+  for (const { identity } of results2 ? failedIn(results2) : []) {
+    if (results1.get(identity.key)?.outcome === 'passed') failedOnRerun.push(identity);
+  }
+  return { buildFailures, stillFailing, occurrences, failedOnRerun, suite };
 };
 
 // The tracker -------------------------------------------------------------
@@ -953,7 +964,7 @@ if (problem) {
   process.exit(2);
 }
 
-const { buildFailures, stillFailing, occurrences, suite } = judge(settings);
+const { buildFailures, stillFailing, occurrences, failedOnRerun, suite } = judge(settings);
 const records =
   stillFailing.length > 0 || occurrences.length > 0 ? await readRecords(settings) : flakyRecords(settings, {});
 // A quarantined test's failure is ignored, unless its quarantine label is left
@@ -998,6 +1009,10 @@ const summary = [
   ...[...buildFailures, ...unread, ...ignored].map((line) => `- ${line}`),
   ...occurrences.map(
     (identity, i) => `- Flake occurrence: ${inlineCode(identity.title)} failed on attempt 1 and passed on attempt 2. ${recorded[i]}`,
+  ),
+  ...failedOnRerun.map(
+    (identity) =>
+      `- Failed only on the rerun: ${inlineCode(identity.title)} passed on attempt 1 and failed on attempt 2, which neither fails the build nor counts as a flake occurrence.`,
   ),
   '',
 ].join('\n');
