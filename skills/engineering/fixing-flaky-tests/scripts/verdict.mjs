@@ -110,13 +110,18 @@
 //
 // Recording a flake occurrence:
 //   1. Find the test's record: the issue carrying the flaky label whose title
-//      is exactly the test's identity as `<classname> <name>`. The script
-//      lists every issue with the flaky label, open and closed, once per job,
-//      and compares titles itself. Search matches loosely, and GitHub's lags
-//      behind new issues, so a matrix job could miss a record created seconds
-//      earlier by another leg of the run.
+//      is exactly the test's identity as `<classname> <name>`, and whose body,
+//      when it gives a classname and name, gives the test's own. Two
+//      identities can share a title, such as "a b" plus "c" and "a" plus
+//      "b c", and the body tells their records apart. The script lists every
+//      issue with the flaky label, open and closed, once per job, and compares
+//      them itself. Search matches loosely, and GitHub's lags behind new
+//      issues, so a matrix job could miss a record created seconds earlier by
+//      another leg of the run.
 //   2. No record: create one with that title, labelled with the flaky label
-//      and ready-for-agent.
+//      and ready-for-agent. Its body gives the identity in two lines,
+//      "- Classname: " and "- Name: ", each followed by the value as Markdown
+//      inline code, which reads back exactly by CommonMark's rules.
 //   3. A record that already holds an occurrence with this --run: leave it.
 //      Every job of a run runs the script, and the run is one occurrence.
 //   4. A closed record: take off the quarantine label if it kept one, then
@@ -498,7 +503,7 @@ const reasonOf = async (response) => {
 };
 
 // The GitHub adapter: the tracker operations the script uses, over GitHub's
-// REST API. A record is { number, title, url, open, labels }.
+// REST API. A record is { number, title, url, open, labels, body }.
 const githubTracker = ({ trackerUrl, repo, token }) => {
   const issues = `${trackerUrl.replace(/\/+$/, '')}/repos/${repo}/issues`;
   const { call, callAll } = restApi(trackerUrl, {
@@ -513,6 +518,7 @@ const githubTracker = ({ trackerUrl, repo, token }) => {
     url: issue.html_url,
     open: issue.state === 'open',
     labels: (issue.labels ?? []).map((label) => label.name ?? label),
+    body: issue.body ?? '',
   });
 
   return {
@@ -555,6 +561,7 @@ const gitlabTracker = ({ trackerUrl, repo, token }) => {
     url: issue.web_url,
     open: issue.state === 'opened',
     labels: issue.labels ?? [],
+    body: issue.description ?? '',
   });
 
   return {
@@ -640,7 +647,7 @@ const trackerProblem = (error, doing) =>
 // `problem` says why, and the job has no records.
 const flakyRecords = (settings, { tracker, list = [], problem }) => {
   const quarantined = (record) => record.open && record.labels.includes(settings.quarantineLabel);
-  const matching = (identity) => list.filter((record) => record.title === identity.title);
+  const matching = (identity) => list.filter((record) => isRecordOf(record, identity));
   return {
     tracker,
     problem,
@@ -672,13 +679,25 @@ const listOf = (items) =>
 
 const plural = (count, word, words = `${word}s`) => `${count} ${count === 1 ? word : words}`;
 
-// Markdown inline code that holds any text, backticks included.
+// Markdown inline code that holds any text, backticks included. CommonMark
+// strips one space from each end of code that starts and ends with one, so
+// such text gets one more, as does text that starts or ends with a backtick.
+const STRIPPED = /^ [\s\S]* $/;
 const inlineCode = (text) => {
   const fence = '`'.repeat(Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length)) + 1);
-  const pad = /^`|`$/.test(text) ? ' ' : '';
+  const pad = /^`|`$/.test(text) || (STRIPPED.test(text) && /[^ ]/.test(text)) ? ' ' : '';
   return `${fence}${pad}${text}${pad}${fence}`;
 };
 
+// The text that inline code holds, read as CommonMark reads it, or undefined
+// when `code` isn't inline code.
+const fromInlineCode = (code) => {
+  const inner = code?.match(/^(`+)([\s\S]*?)\1$/)?.[2];
+  return inner !== undefined && STRIPPED.test(inner) && /[^ ]/.test(inner) ? inner.slice(1, -1) : inner;
+};
+
+// A record's body gives its test's identity, which its title can't, since
+// two identities can share a title.
 const recordBody = ({ classname, name }) =>
   [
     'The flaky-test record for one test, kept by the verdict script. Each flake occurrence is a comment below.',
@@ -687,6 +706,20 @@ const recordBody = ({ classname, name }) =>
     `- Name: ${inlineCode(name)}`,
     '',
   ].join('\n');
+
+// The identity a record's body gives in its Classname and Name lines, as
+// recordBody writes them, or undefined when it gives none, as in a record a
+// person wrote.
+const identityIn = (body) => {
+  const line = (label) => body.match(new RegExp(`^- ${label}: (.*?)\\r?$`, 'm'))?.[1];
+  const [classname, name] = [fromInlineCode(line('Classname')), fromInlineCode(line('Name'))];
+  return classname === undefined || name === undefined ? undefined : identityOf(classname, name);
+};
+
+// A record is a test's when its title is the test's title and its body, when
+// it gives an identity, gives the test's.
+const isRecordOf = (record, identity) =>
+  record.title === identity.title && (identityIn(record.body)?.key ?? identity.key) === identity.key;
 
 // The JSON in a marker escapes <, > and &, so no value can close the HTML
 // comment early.

@@ -432,3 +432,17 @@ trackerTest('when the tracker refuses to take a closed record\'s quarantine labe
       assert.match(lineAbout(summary, CHECKOUT_TITLE), /not recorded/i);
     },
   ));
+
+trackerTest('a quarantined record of another test with the same title does not quarantine this one', ({ withTracker }) =>
+  withTracker({}, async (tracker) => {
+    const quarantined = ['spec/cart.spec.ts', 'checkout total'];
+    const other = ['spec/cart.spec.ts checkout', 'total'];
+    for (const [branch, run] of [['main', '1'], ['feature/tax', '2'], ['feature/cart', '3']]) {
+      const { code, output } = await runVerdict({ ...suite({ flaky: [quarantined] }), ...recordingTo(tracker, { branch, run }) });
+      assert.equal(code, 0, output);
+    }
+    assert.ok(tracker.records[0].labels.includes('quarantined'), 'the first test is quarantined');
+    const { code, summary } = await runVerdict({ ...suite({ broken: [other] }), ...recordingTo(tracker, { run: '4' }) });
+    assert.equal(code, 1);
+    assert.doesNotMatch(lineAbout(summary, 'failed on both attempts'), /ignored/i);
+  }));

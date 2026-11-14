@@ -324,3 +324,35 @@ trackerTest('a run with no flake occurrence sends the tracker nothing', ({ withT
     assert.equal(code, 0, output);
     assert.deepEqual(tracker.requests, []);
   }));
+
+trackerTest('two tests whose classname and name join to the same title each keep their own record', ({ withTracker }) =>
+  withTracker({}, async (tracker) => {
+    const first = ['spec/cart.spec.ts', 'checkout total'];
+    const second = ['spec/cart.spec.ts checkout', 'total'];
+    for (const [test, run] of [[first, '1'], [second, '2'], [first, '3']]) {
+      const { code, output } = await runVerdict({ ...suite({ flaky: [test] }), ...recordingTo(tracker, { run }) });
+      assert.equal(code, 0, output);
+    }
+    assert.deepEqual(
+      tracker.records.map((record) => [record.title, occurrencesOn(record).map(({ run }) => run)]),
+      [
+        ['spec/cart.spec.ts checkout total', ['1', '3']],
+        ['spec/cart.spec.ts checkout total', ['2']],
+      ],
+    );
+    assert.match(tracker.records[1].body, /Classname: `spec\/cart.spec.ts checkout`/);
+    assert.match(tracker.records[1].body, /Name: `total`/);
+  }));
+
+trackerTest('a test whose name holds backticks or starts and ends with a space finds its own record again', ({ withTracker }) =>
+  withTracker({}, async (tracker) => {
+    const tests = [['spec/view.spec.ts', '`render` keeps ``state``'], ['spec/view.spec.ts', ' padded ']];
+    for (const run of ['1', '2']) {
+      const { code, output } = await runVerdict({ ...suite({ flaky: tests }), ...recordingTo(tracker, { run }) });
+      assert.equal(code, 0, output);
+    }
+    assert.deepEqual(
+      tracker.records.map((record) => occurrencesOn(record).map(({ run }) => run)),
+      [['1', '2'], ['1', '2']],
+    );
+  }));
