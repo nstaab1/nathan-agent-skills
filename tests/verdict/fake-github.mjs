@@ -51,10 +51,10 @@ export const startFakeGitHub = async ({
   let commentIds = 0;
   let eventIds = 0;
   let base;
-  const poster = user ?? app;
+  const trackerUser = user ?? app;
 
   const comment = (given) => {
-    const { body, author = poster } = typeof given === 'string' ? { body: given } : given;
+    const { body, author = trackerUser } = typeof given === 'string' ? { body: given } : given;
     return { id: ++commentIds, body, author };
   };
   // GitHub gives an event's time to the second.

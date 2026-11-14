@@ -104,7 +104,7 @@ End with:
 
 ## The run adds no occurrences
 
-The verdict script records an occurrence when it runs with tracker settings, and counts toward quarantine each comment on a record that holds a `verdict-occurrence` marker line and that the script's own user wrote, as [Occurrence count](#occurrence-count) says. Only CI writes occurrences, so the run keeps its own work out of both:
+The verdict script records an occurrence when it runs with tracker settings, and counts toward quarantine each comment on a record that holds a `verdict-occurrence` marker line and that the tracker user wrote, as [Occurrence count](#occurrence-count) says. Only CI writes occurrences, so the run keeps its own work out of both:
 
 - Run tests with the CI doc's test command or your one-test command directly, never wrapped in the verdict script. A routine that runs inside a CI job has the tracker settings in its environment, so the script there would record the agent's own runs.
 - Reproduce and run the 20 passes in your own workspace, and push only the finished fix. A pushed commit that forces the failure would run in the PR's CI and record occurrences on the agent's branch, which count toward quarantine as a branch of their own.
@@ -123,7 +123,7 @@ A quarantine's age is the whole days from its start to the run's time. It ends a
 
 ## Occurrence count
 
-A record's occurrences are the `verdict-occurrence` markers in its comments, read as the script's header says: a line matching `^<!-- verdict-occurrence (\{.*\}) -->$` whose group parses as JSON, in a comment the script's user wrote. A comment's author is its `user.login` on GitHub and its `author.username` on GitLab. The script's user is the `--tracker-user` the CI config passes the verdict script, when it passes one. Otherwise it is the user CI's token posts as, as the script's header describes: `github-actions[bot]` for a job's own `GITHUB_TOKEN`, and the token's own user for a personal, project or group access token. A marker anyone else wrote is not an occurrence, since anyone who can comment can write one. When the run can't tell who the script's user is, it counts no occurrences, and its report says why. Its occurrence count is the number the script counts toward quarantine. That takes the occurrences dated after the record last closed, from the last one holding `"reopened":true` on, keeps those dated no more than 30 days before the run's time, and counts each `run` once. Its newest occurrence is the latest `date` among all its occurrences.
+A record's occurrences are the `verdict-occurrence` markers in its comments, read as the script's header says: a line matching `^<!-- verdict-occurrence (\{.*\}) -->$` whose group parses as JSON, in a comment the tracker user wrote. A comment's author is its `user.login` on GitHub and its `author.username` on GitLab. The tracker user is the user the verdict script's token posts as, which the CI doc's Verdict script **Tracker user** gives. A marker anyone else wrote is not an occurrence, since anyone who can comment can write one. When Tracker user is missing or reads `None.`, the run can't tell whose markers count, so it counts no occurrences, and its report says why. Its occurrence count is the number the script counts toward quarantine. That takes the occurrences dated after the record last closed, from the last one holding `"reopened":true` on, keeps those dated no more than 30 days before the run's time, and counts each `run` once. Its newest occurrence is the latest `date` among all its occurrences.
 
 ## Open PRs
 

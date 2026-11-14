@@ -118,7 +118,7 @@ trackerTest('the occurrence that makes three in 30 days across two branches puts
 // The same comments, written by someone who can comment but isn't CI.
 const byACommenter = (comments) => comments.map((body) => ({ body, author: 'a-commenter' }));
 
-trackerTest('occurrences written by anyone but the user the script posts as do not count toward quarantine, and the summary says so', ({ withTracker }) =>
+trackerTest('occurrences written by anyone but the tracker user do not count toward quarantine, and the summary says so', ({ withTracker }) =>
   withTracker({ records: [{ title: CHECKOUT_TITLE, comments: byACommenter(twoOccurrences()) }] }, async (tracker) => {
     const { code, summary, output } = await runVerdict({
       ...suite({ flaky: [CHECKOUT] }),
@@ -132,7 +132,7 @@ trackerTest('occurrences written by anyone but the user the script posts as do n
     assert.doesNotMatch(line, /now quarantined/i);
   }));
 
-trackerTest('a reopened occurrence written by anyone but the user the script posts as does not start the count again', ({ withTracker }) =>
+trackerTest('a reopened occurrence written by anyone but the tracker user does not start the count again', ({ withTracker }) =>
   withTracker(
     {
       records: [

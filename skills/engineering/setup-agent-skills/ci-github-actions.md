@@ -38,6 +38,7 @@ The verdict script's second attempt runs this to rerun only the tests that faile
 
 - **Location**: None.
 - **Version**: None.
+- **Tracker user**: None.
 
 `fixing-flaky-tests` fills in the script's path, and the version from its version line, when it wires the script into CI.
 
