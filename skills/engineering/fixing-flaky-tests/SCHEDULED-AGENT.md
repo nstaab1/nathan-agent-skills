@@ -32,7 +32,7 @@ Do the three parts in this order. When any of them changes a record, read the re
 2. Comment on the duplicate with the kept record's link, ending with a `duplicate` marker. When an open PR names the duplicate, comment the kept record's link on that PR too.
 3. Take the flaky label off the duplicate, and the quarantine label when it has one. When it carries the `ready-for-human` label, put that label on the kept record. Then close the duplicate, as a duplicate when the tracker has that reason, such as `gh issue close <number> --duplicate-of <kept number>`.
 
-The flaky label has to come off. The verdict script finds a test's record by its title and identity among every record with that label, open or closed, and reopens a closed one, so a duplicate that kept the label could be reopened and recorded on.
+The flaky label has to come off. The verdict script finds a test's record among every record with that label, open or closed, by the identity its body gives, or by its title when its body gives none, and reopens a closed one, so a duplicate that kept the label could be reopened and recorded on.
 
 **Close records for tests that no longer exist.** For each open record, look for its test on the default branch's head. Search the test files for its name, or for the part before a parameterised case's values, and for the file or module its classname names. When the CI doc's Results file of a run works, look for its identity in the newest default-branch results file as well. When no test produces the identity, find the commit on the default branch that removed or renamed the test, such as with `git log -S '<name>' -- <test paths>`. Comment that commit on the record, with the test's new identity when it was renamed, ending with a `test-gone` marker. Take off the quarantine label when it has one, and close the record. Close a record only on such a commit. A test that is missing with no commit removing it may live on a branch not yet merged, so its record stays open and goes in the report.
 
@@ -104,7 +104,7 @@ End with:
 
 ## The run adds no occurrences
 
-The verdict script records an occurrence when it runs with tracker settings, and counts toward quarantine every comment on a record that holds a `verdict-occurrence` marker line. Only CI writes occurrences, so the run keeps its own work out of both:
+The verdict script records an occurrence when it runs with tracker settings, and counts toward quarantine each comment on a record that holds a `verdict-occurrence` marker line and that the script's own user wrote, as [Occurrence count](#occurrence-count) says. Only CI writes occurrences, so the run keeps its own work out of both:
 
 - Run tests with the CI doc's test command or your one-test command directly, never wrapped in the verdict script. A routine that runs inside a CI job has the tracker settings in its environment, so the script there would record the agent's own runs.
 - Reproduce and run the 20 passes in your own workspace, and push only the finished fix. A pushed commit that forces the failure would run in the PR's CI and record occurrences on the agent's branch, which count toward quarantine as a branch of their own.
@@ -123,7 +123,7 @@ A quarantine's age is the whole days from its start to the run's time. It ends a
 
 ## Occurrence count
 
-A record's occurrences are the `verdict-occurrence` markers in its comments, read as the script's header says: a line matching `^<!-- verdict-occurrence (\{.*\}) -->$` whose group parses as JSON. Its occurrence count is the number the script counts toward quarantine. That takes the occurrences dated after the record last closed, from the last one holding `"reopened":true` on, keeps those dated no more than 30 days before the run's time, and counts each `run` once. Its newest occurrence is the latest `date` among all its markers.
+A record's occurrences are the `verdict-occurrence` markers in its comments, read as the script's header says: a line matching `^<!-- verdict-occurrence (\{.*\}) -->$` whose group parses as JSON, in a comment the script's user wrote. A comment's author is its `user.login` on GitHub and its `author.username` on GitLab. The script's user is the `--tracker-user` the CI config passes the verdict script, when it passes one. Otherwise it is the user CI's token posts as, as the script's header describes: `github-actions[bot]` for a job's own `GITHUB_TOKEN`, and the token's own user for a personal, project or group access token. A marker anyone else wrote is not an occurrence, since anyone who can comment can write one. When the run can't tell who the script's user is, it counts no occurrences, and its report says why. Its occurrence count is the number the script counts toward quarantine. That takes the occurrences dated after the record last closed, from the last one holding `"reopened":true` on, keeps those dated no more than 30 days before the run's time, and counts each `run` once. Its newest occurrence is the latest `date` among all its occurrences.
 
 ## Open PRs
 
@@ -163,7 +163,7 @@ Write the JSON on one line, with each `<`, `>` and `&` in a value as `\u003c`, `
 On GitHub:
 
 - **Every record**: `gh api --paginate "repos/<owner>/<repo>/issues?labels=<flaky label>&state=all&per_page=100" --jq '.[] | select(.pull_request | not) | {number, title, state, labels: [.labels[].name], url: .html_url, body}'`. `state` is `open` or `closed`.
-- **A record's comments**: `gh api --paginate "repos/<owner>/<repo>/issues/<number>/comments?per_page=100" --jq '.[] | {created_at, body}'`, oldest first.
+- **A record's comments**: `gh api --paginate "repos/<owner>/<repo>/issues/<number>/comments?per_page=100" --jq '.[] | {created_at, author: .user.login, body}'`, oldest first.
 - **A record's events**: `gh api --paginate "repos/<owner>/<repo>/issues/<number>/events?per_page=100" --jq '.[] | select(.event == "labeled" or .event == "closed") | {event, label: .label.name, created_at}'`. A `labeled` event added the label it names, and a `closed` event closed the record, each at `created_at`.
 - **Open PRs**: `gh pr list -R <owner>/<repo> --state open --limit 1000 --json number,title,body,url`.
 - **A PR's state**: `gh pr view <url> --json state`, which is `OPEN`, `CLOSED` or `MERGED`.
