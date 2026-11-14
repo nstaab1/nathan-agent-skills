@@ -101,7 +101,7 @@ Run the first review by hand. It becomes the baseline, and it shows that the CI 
 - **Where it runs**: any scheduled agent that starts from a fresh clone of the repo with its full git history and this skill installed, the CI provider's tools signed in with read access to runs, and the tracker's tools signed in with rights to create, comment on and close tickets.
 - **Prompt**:
 
-  > Run a run-time review of this repo with the reviewing-ci-run-times skill. This is the scheduled weekly review: file the review ticket and its child tickets, and close the previous review. Your only writes are tickets. End with the review ticket's link and the top three suggestions.
+  > Run a run-time review of this repo with the reviewing-ci-run-times skill. This is the scheduled weekly review, so file the review ticket and its child tickets, and close the previous review. Your only writes are tickets. End with the review ticket's link and the top three suggestions.
 
 Then record it under the CI doc's `## Scheduled agents`, in place of `None.` when the section reads that: `- reviewing-ci-run-times: weekly, <where it runs>`.
 
