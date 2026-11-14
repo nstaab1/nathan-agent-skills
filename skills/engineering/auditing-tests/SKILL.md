@@ -45,7 +45,7 @@ Done when you hold the in-scope test files or tests, in the order you will audit
 
 ## 2. Leave flaky tests to their records
 
-List open tickets that carry the flaky label. Each one is a flaky-test record, titled with a test's identity as its JUnit XML results file gives it, classname plus name. Drop every in-scope test that matches a record title, and drop it when the match is uncertain too. The flaky-test work owns those tests. A local-file tracker holds no flaky-test records, so skip this step there.
+List open tickets that carry the flaky label. Each one is a flaky-test record for one test. Its body gives the test's identity, as its JUnit XML results file gives it, in its Classname and Name lines. A record whose body gives none, as one a person wrote, names its test in its title, classname plus name. Drop every in-scope test that matches a record, and drop it when the match is uncertain too. The flaky-test work owns those tests. A local-file tracker holds no flaky-test records, so skip this step there.
 
 Done when every in-scope test is kept, or dropped with the record it matched.
 
