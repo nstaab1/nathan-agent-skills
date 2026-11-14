@@ -1,6 +1,6 @@
 # Wiring the verdict script
 
-The specifics behind step 4 of [SKILL.md](SKILL.md): what each test framework needs, the test step on GitHub Actions, and other CI providers. The script's header is the reference for its flags and tracker settings.
+The specifics behind step 4 of [SKILL.md](SKILL.md): what each test framework needs, the test step on GitHub Actions and on GitLab CI, and other CI providers. The script's header is the reference for its flags and tracker settings.
 
 ## Test frameworks
 
@@ -101,3 +101,28 @@ The CI doc's `## CI provider` names the provider and its config.
 - **Token**: store a token that can read and write issues on the tracker as a masked secret variable named `VERDICT_TRACKER_TOKEN`.
 - **Run summary**: the script prints it to the job log. When the provider shows a file as a job summary, pass that file as `--summary`.
 - **Windows**: the `.cmd` rule above holds on every provider.
+
+### GitLab CI
+
+A test job wired for a Vitest suite, in `.gitlab-ci.yml`:
+
+```yaml
+test:
+  image: node:24
+  script:
+    # The job's existing setup, such as npm ci, stays before this command.
+    - >-
+      node ci/verdict.mjs
+      --results results.xml
+      --rerun "npx vitest run --reporter=default --reporter=junit --outputFile.junit=results.xml --lastFailed"
+      --flaky-label flaky-test
+      --quarantine-label quarantined
+      --quarantine-cap 5%
+      -- npx vitest run --reporter=default --reporter=junit --outputFile.junit=results.xml
+```
+
+- **Tracker settings**: when `$GITLAB_CI` is set, the script picks the GitLab tracker and takes `--tracker-url`, `--repo`, `--branch`, `--job`, `--run` and `--run-url` from GitLab's predefined variables, as its header lists. Pass none of them when the records live in the project's own issues. A `parallel:matrix` job's name already holds its matrix values, so `--job` stays out too.
+- **Token**: create a project access token with the `api` scope and the Planner role or higher, or a group or personal access token where project tokens aren't available. Store it as a masked CI/CD variable named `VERDICT_TRACKER_TOKEN`, and leave it unprotected, since a protected variable reaches only pipelines on protected branches and tags. Without it the script falls back to `$CI_JOB_TOKEN`, which can't write issues, so nothing is recorded.
+- **Retries**: a job-level `retry:` reruns a job the script already judged. Take it out of the test job, or limit its `when` to infrastructure failures such as `runner_system_failure` and `stuck_or_timeout_failure`.
+- **Fork merge requests**: a fork's merge request pipeline runs in the fork by default, without the project's CI/CD variables. The script still reaches a verdict, treats no test as quarantined, and says in the job log what it couldn't record.
+- **Node**: the job's image needs Node, such as `node:24`. A job on another image installs Node before the script runs.

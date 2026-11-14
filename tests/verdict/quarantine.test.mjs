@@ -1,15 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runVerdict, runVerdictWith, junit, passed, failed, lineAbout, recordingTo, withTracker } from './harness.mjs';
-import { unreachableUrl } from './fake-github.mjs';
+import { runVerdict, runVerdictWith, junit, passed, failed, lineAbout, recordingTo, trackerTest, gitlab } from './harness.mjs';
 
 // The failures this guards: a quarantined test that still fails the build; a
 // failure let through by a quarantine read from a closed record, or from a
 // label a reopened record kept; a test quarantined on too few occurrences, on
 // old ones, on ones from before a reopen or on one branch's; a quarantine past
 // the cap, or one the cap stopped without the summary saying so. Each test
-// runs the real verdict script against a fake GitHub tracker and reads the
-// exit code, the run summary and the records the tracker holds afterwards.
+// runs the real verdict script against a fake tracker, GitHub's and GitLab's
+// in turn, and reads the exit code, the run summary and the records the
+// tracker holds afterwards.
 
 const CHECKOUT = ['tests.test_cart', 'test_checkout_total'];
 const CHECKOUT_TITLE = 'tests.test_cart test_checkout_total';
@@ -56,7 +56,7 @@ const suite = ({ size = 40, flaky = [], broken = [] }) => {
   };
 };
 
-test('a test that fails both attempts does not fail the build while its open record carries the quarantine label', () =>
+trackerTest('a test that fails both attempts does not fail the build while its open record carries the quarantine label', ({ withTracker }) =>
   withTracker({ records: [{ title: CHECKOUT_TITLE, labels: ['flaky-test', 'quarantined'] }] }, async (tracker) => {
     const { code, summary, output } = await runVerdict({ ...suite({ broken: [CHECKOUT] }), ...recordingTo(tracker) });
     assert.equal(code, 0, output);
@@ -67,7 +67,7 @@ test('a test that fails both attempts does not fail the build while its open rec
     assert.ok(line.includes(tracker.records[0].url), line);
   }));
 
-test('a closed record ends its quarantine, so a test that fails both attempts fails the build', () =>
+trackerTest('a closed record ends its quarantine, so a test that fails both attempts fails the build', ({ withTracker }) =>
   withTracker(
     { records: [{ title: CHECKOUT_TITLE, state: 'closed', labels: ['flaky-test', 'quarantined'] }] },
     async (tracker) => {
@@ -78,8 +78,8 @@ test('a closed record ends its quarantine, so a test that fails both attempts fa
     },
   ));
 
-test('with the tracker unreachable nothing is quarantined: a test that fails both attempts fails the build, and the summary says why', async () => {
-  const tracker = { url: await unreachableUrl(), repo: 'acme/shop', token: 'fake-token' };
+trackerTest('with the tracker unreachable nothing is quarantined: a test that fails both attempts fails the build, and the summary says why', async ({ unreachable }) => {
+  const tracker = await unreachable();
   const { code, summary } = await runVerdict({ ...suite({ broken: [CHECKOUT] }), ...recordingTo(tracker) });
   assert.equal(code, 1);
   assert.match(summary, /verdict: fail/i);
@@ -88,7 +88,7 @@ test('with the tracker unreachable nothing is quarantined: a test that fails bot
   assert.match(line, /no test is treated as quarantined/i);
 });
 
-test('with a read-only token the quarantine list is still read, so a quarantined test that fails both attempts does not fail the build', () =>
+trackerTest('with a read-only token the quarantine list is still read, so a quarantined test that fails both attempts does not fail the build', ({ withTracker }) =>
   withTracker(
     { readOnly: true, records: [{ title: CHECKOUT_TITLE, labels: ['flaky-test', 'quarantined'] }] },
     async (tracker) => {
@@ -98,7 +98,24 @@ test('with a read-only token the quarantine list is still read, so a quarantined
     },
   ));
 
-test('the summary line for each flake occurrence shows its count toward quarantine', () =>
+test('on GitLab with only the CI job token, the quarantine list is still read, and the summary says the occurrence was not recorded', () =>
+  gitlab.withTracker(
+    { jobToken: 'fake-job-token', records: [{ title: CHECKOUT_TITLE, labels: ['flaky-test', 'quarantined'] }] },
+    async (tracker) => {
+      const { flags } = recordingTo(tracker);
+      const { code, summary, output } = await runVerdict({
+        ...suite({ broken: [CHECKOUT], flaky: [TAX] }),
+        flags,
+        env: { CI_JOB_TOKEN: tracker.jobToken },
+      });
+      assert.equal(code, 0, output);
+      assert.match(lineAbout(summary, CHECKOUT_TITLE), /ignored/i);
+      assert.match(lineAbout(summary, TAX_TITLE), /not recorded: the tracker refused .*403/i);
+      assert.equal(tracker.records.length, 1);
+    },
+  ));
+
+trackerTest('the summary line for each flake occurrence shows its count toward quarantine', ({ withTracker }) =>
   withTracker({ records: [{ title: CHECKOUT_TITLE, comments: [earlier({ daysAgo: 2, branch: 'main' })] }] }, async (tracker) => {
     const { code, summary, output } = await runVerdict({
       ...suite({ flaky: [CHECKOUT, TAX] }),
@@ -109,7 +126,7 @@ test('the summary line for each flake occurrence shows its count toward quaranti
     assert.match(lineAbout(summary, TAX_TITLE), /1 occurrence on 1 branch in 30 days \(it takes 3 on at least 2\)/i);
   }));
 
-test('the occurrence that makes three in 30 days across two branches puts the quarantine label on the record', () =>
+trackerTest('the occurrence that makes three in 30 days across two branches puts the quarantine label on the record', ({ withTracker }) =>
   withTracker(
     {
       records: [
@@ -129,7 +146,7 @@ test('the occurrence that makes three in 30 days across two branches puts the qu
     },
   ));
 
-test('three occurrences on one branch do not quarantine the test', () =>
+trackerTest('three occurrences on one branch do not quarantine the test', ({ withTracker }) =>
   withTracker(
     {
       records: [
@@ -152,7 +169,7 @@ test('three occurrences on one branch do not quarantine the test', () =>
     },
   ));
 
-test('an occurrence more than 30 days old does not count toward quarantine', () =>
+trackerTest('an occurrence more than 30 days old does not count toward quarantine', ({ withTracker }) =>
   withTracker(
     {
       records: [
@@ -172,7 +189,7 @@ test('an occurrence more than 30 days old does not count toward quarantine', () 
     },
   ));
 
-test('occurrences from before the record was last reopened do not count toward quarantine', () =>
+trackerTest('occurrences from before the record was last reopened do not count toward quarantine', ({ withTracker }) =>
   withTracker(
     {
       records: [
@@ -199,7 +216,7 @@ test('occurrences from before the record was last reopened do not count toward q
     },
   ));
 
-test('a flake occurrence that reopens a record takes off its quarantine label, and the count starts again', () =>
+trackerTest('a flake occurrence that reopens a record takes off its quarantine label, and the count starts again', ({ withTracker }) =>
   withTracker(
     {
       records: [
@@ -226,7 +243,7 @@ test('a flake occurrence that reopens a record takes off its quarantine label, a
     },
   ));
 
-test('the cap stops a quarantine once 5% of the suite is quarantined, and the summary warns about it first', () =>
+trackerTest('the cap stops a quarantine once 5% of the suite is quarantined, and the summary warns about it first', ({ withTracker }) =>
   withTracker(
     { records: [{ title: CHECKOUT_TITLE, comments: twoOccurrences() }, ...quarantinedOthers(2)] },
     async (tracker) => {
@@ -247,7 +264,7 @@ test('the cap stops a quarantine once 5% of the suite is quarantined, and the su
     },
   ));
 
-test('a flake occurrence of a quarantined test is recorded, and the summary says it is already quarantined', () =>
+trackerTest('a flake occurrence of a quarantined test is recorded, and the summary says it is already quarantined', ({ withTracker }) =>
   withTracker(
     { records: [{ title: CHECKOUT_TITLE, labels: ['flaky-test', 'quarantined'], comments: twoOccurrences() }] },
     async (tracker) => {
@@ -261,11 +278,11 @@ test('a flake occurrence of a quarantined test is recorded, and the summary says
       assert.match(line, /3 occurrences on 3 branches/i);
       assert.match(line, /already quarantined/i);
       assert.deepEqual(tracker.records[0].labels, ['flaky-test', 'quarantined']);
-      assert.equal(tracker.requests.filter(({ path }) => path.endsWith('/labels')).length, 0, 'no label request');
+      assert.equal(tracker.requests.filter(({ action }) => action?.includes('label')).length, 0, 'no label request');
     },
   ));
 
-test('the default cap is 5% of the tests in the results file, rounded down', async () => {
+trackerTest('the default cap is 5% of the tests in the results file, rounded down', async ({ withTracker }) => {
   for (const [size, quarantined] of [
     [39, false],
     [40, true],
@@ -284,7 +301,7 @@ test('the default cap is 5% of the tests in the results file, rounded down', asy
   }
 });
 
-test('the cap holds across the tests of one job: past it, a second qualifying test is not quarantined', () =>
+trackerTest('the cap holds across the tests of one job: past it, a second qualifying test is not quarantined', ({ withTracker }) =>
   withTracker(
     {
       records: [
@@ -307,7 +324,7 @@ test('the cap holds across the tests of one job: past it, a second qualifying te
     },
   ));
 
-test('--quarantine-cap sets the cap as a share of the suite or as a number of tests', async () => {
+trackerTest('--quarantine-cap sets the cap as a share of the suite or as a number of tests', async ({ withTracker }) => {
   for (const [cap, size, already, quarantined] of [
     ['10%', 30, 2, true],
     ['10%', 29, 2, false],
@@ -340,7 +357,7 @@ test('the script refuses a cap that is neither a whole percentage nor a whole nu
   }
 });
 
-test('--flaky-label and --quarantine-label set the label names quarantine reads and applies', () =>
+trackerTest('--flaky-label and --quarantine-label set the label names quarantine reads and applies', ({ withTracker }) =>
   withTracker(
     {
       records: [
@@ -362,7 +379,7 @@ test('--flaky-label and --quarantine-label set the label names quarantine reads 
     },
   ));
 
-test('a quarantined test that fails attempt 1 and has no result on attempt 2 does not fail the build', () =>
+trackerTest('a quarantined test that fails attempt 1 and has no result on attempt 2 does not fail the build', ({ withTracker }) =>
   withTracker({ records: [{ title: CHECKOUT_TITLE, labels: ['flaky-test', 'quarantined'] }] }, async (tracker) => {
     const { code, summary, output } = await runVerdict({
       testRuns: [{ exit: 1, xml: junit(passed(...TAX), failed(...CHECKOUT)) }],
@@ -375,7 +392,7 @@ test('a quarantined test that fails attempt 1 and has no result on attempt 2 doe
     assert.match(line, /ignored/i);
   }));
 
-test('two occurrences of one run on a record, left by two jobs racing, count once toward quarantine', () => {
+trackerTest('two occurrences of one run on a record, left by two jobs racing, count once toward quarantine', ({ withTracker }) => {
   const race = [earlier({ daysAgo: 1, branch: 'main', run: '777' }), earlier({ daysAgo: 1, branch: 'main', run: '777' })];
   return withTracker(
     { records: [{ title: CHECKOUT_TITLE, comments: race }] },
@@ -391,7 +408,7 @@ test('two occurrences of one run on a record, left by two jobs racing, count onc
   );
 });
 
-test('a job whose run another job already recorded shows the count toward quarantine too', () =>
+trackerTest('a job whose run another job already recorded shows the count toward quarantine too', ({ withTracker }) =>
   withTracker(
     {
       records: [
@@ -413,11 +430,11 @@ test('a job whose run another job already recorded shows the count toward quaran
     },
   ));
 
-test('when the tracker refuses the quarantine label, the occurrence still counts as recorded and the summary says the test was not quarantined', () =>
+trackerTest('when the tracker refuses the quarantine label, the occurrence still counts as recorded and the summary says the test was not quarantined', ({ withTracker }) =>
   withTracker(
     {
       records: [{ title: CHECKOUT_TITLE, comments: twoOccurrences() }],
-      refuse: ({ method, path }) => method === 'POST' && path.endsWith('/labels'),
+      refuse: ({ action }) => action === 'add label',
     },
     async (tracker) => {
       const { code, summary, output } = await runVerdict({
@@ -433,11 +450,11 @@ test('when the tracker refuses the quarantine label, the occurrence still counts
     },
   ));
 
-test('when the tracker refuses to take a closed record\'s quarantine label off, the record stays closed and out of quarantine', () =>
+trackerTest('when the tracker refuses to take a closed record\'s quarantine label off, the record stays closed and out of quarantine', ({ withTracker }) =>
   withTracker(
     {
       records: [{ title: CHECKOUT_TITLE, state: 'closed', labels: ['flaky-test', 'quarantined'] }],
-      refuse: ({ method }) => method === 'DELETE',
+      refuse: ({ action }) => action === 'remove label',
     },
     async (tracker) => {
       const { code, summary, output } = await runVerdict({ ...suite({ flaky: [CHECKOUT] }), ...recordingTo(tracker) });

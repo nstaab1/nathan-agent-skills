@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// verdict.mjs version 0.3.0
+// verdict.mjs version 0.4.0
 //
 // The verdict script. It runs a CI job's test command, reruns the failures
 // once, records each flake occurrence on the test's flaky-test record in the
@@ -17,7 +17,8 @@
 //              "pytest --lf --junitxml=results.xml". Without it, attempt 2
 //              runs the whole test command again.
 //   --summary  A file to append the run summary to. Defaults to
-//              $GITHUB_STEP_SUMMARY. The summary is printed to stdout either way.
+//              $GITHUB_STEP_SUMMARY. The summary is printed to stdout either
+//              way, which on GitLab CI, with no step summary, is the job log.
 //
 // The test command after `--` runs as given, without a shell. The rerun
 // command runs through the shell.
@@ -42,33 +43,61 @@
 // any of them failed.
 //
 // Tracker settings. The tracker is a GitHub repo's issues, reached through
-// GitHub's REST API. On GitHub Actions every setting but the token defaults
-// from the job's environment, and a flag overrides its default.
+// GitHub's REST API, or a GitLab project's issues, reached through GitLab's
+// REST API v4. On GitHub Actions and GitLab CI the job's environment gives
+// every setting a default except a token that can write issues, and a flag
+// overrides its default.
 //
+//   --tracker      github or gitlab. Defaults to $VERDICT_TRACKER, then
+//                  gitlab when $GITLAB_CI is set, then github.
 //   --tracker-url  The API's base address. Defaults to $GITHUB_API_URL, then
-//                  https://api.github.com.
+//                  https://api.github.com. On GitLab, to $CI_API_V4_URL, then
+//                  https://gitlab.com/api/v4.
 //   --repo         The repo whose issues hold the records, as owner/name.
-//                  Defaults to $GITHUB_REPOSITORY.
+//                  Defaults to $GITHUB_REPOSITORY. On GitLab, the project's
+//                  path, such as acme/web/shop, or its numeric ID, defaulting
+//                  to $CI_PROJECT_PATH.
 //   --branch       The branch the run tests. Defaults to $GITHUB_HEAD_REF, a
-//                  PR's own branch, then $GITHUB_REF_NAME.
+//                  PR's own branch, then $GITHUB_REF_NAME. On GitLab, to
+//                  $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME, a merge request's own
+//                  branch, then $CI_COMMIT_REF_NAME.
 //   --job          The job's name. Defaults to $GITHUB_JOB, the job's id,
 //                  which every leg of a matrix shares. Pass a name that holds
 //                  the matrix values, such as "test (${{ matrix.os }})", so
-//                  occurrences tell the legs apart.
+//                  occurrences tell the legs apart. On GitLab, to
+//                  $CI_JOB_NAME, which holds a parallel:matrix job's values.
 //   --run          The run's id, the same in every job and every attempt of
-//                  the run. Defaults to $GITHUB_RUN_ID.
+//                  the run. Defaults to $GITHUB_RUN_ID. On GitLab the run is
+//                  the pipeline, and it defaults to $CI_PIPELINE_ID.
 //   --run-url      The run's link. Defaults to
 //                  $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID.
+//                  On GitLab, to $CI_PIPELINE_URL.
 //   --flaky-label  The label every flaky-test record carries. Defaults to
 //                  flaky-test.
 //
-// The token comes from $VERDICT_TRACKER_TOKEN, then $GITHUB_TOKEN, and never
-// from a flag, which keeps it out of logs and process lists. It must be able
-// to read and write issues. On GitHub Actions that is the job's own token
-// with `permissions: issues: write`, passed as
-// `env: GITHUB_TOKEN: ${{ github.token }}`. While a setting is missing, every
-// occurrence goes unrecorded and the run summary names what is missing.
-// Without --repo or a token, the quarantine list isn't read either.
+// The token never comes from a flag, which keeps it out of logs and process
+// lists. It must be able to read and write issues.
+//
+// On GitHub it comes from $VERDICT_TRACKER_TOKEN, then $GITHUB_TOKEN. On
+// GitHub Actions that is the job's own token with
+// `permissions: issues: write`, passed as
+// `env: GITHUB_TOKEN: ${{ github.token }}`.
+//
+// On GitLab it comes from $VERDICT_TRACKER_TOKEN, sent in the PRIVATE-TOKEN
+// header. Use a project, group or personal access token with the api scope,
+// whose user has at least the Planner role in the project, or Reporter on a
+// GitLab that predates Planner, since labelling and reopening another
+// member's issue take one of those. Store it as a masked CI/CD variable that
+// isn't protected, because a protected variable reaches only pipelines on
+// protected branches and tags. Without it the token is the job's own
+// $CI_JOB_TOKEN, sent in the JOB-TOKEN header, which can't write issues, so
+// every occurrence goes unrecorded. It reads the quarantine list only when
+// the project grants its job token the fine-grained Read work items
+// permission.
+//
+// While a setting is missing, every occurrence goes unrecorded and the run
+// summary names what is missing. Without --repo or a token, the quarantine
+// list isn't read either.
 //
 // Quarantine settings. The CI doc records the same values, and the workflow
 // passes them here.
@@ -83,7 +112,7 @@
 //   1. Find the test's record: the issue carrying the flaky label whose title
 //      is exactly the test's identity as `<classname> <name>`. The script
 //      lists every issue with the flaky label, open and closed, once per job,
-//      and compares titles itself. GitHub's search matches loosely and lags
+//      and compares titles itself. Search matches loosely, and GitHub's lags
 //      behind new issues, so a matrix job could miss a record created seconds
 //      earlier by another leg of the run.
 //   2. No record: create one with that title, labelled with the flaky label
@@ -92,7 +121,8 @@
 //      Every job of a run runs the script, and the run is one occurrence.
 //   4. A closed record: take off the quarantine label if it kept one, then
 //      reopen it.
-//   5. Add the occurrence as a comment on the record.
+//   5. Add the occurrence as a comment on the record, which GitLab calls a
+//      note.
 //   6. Quarantine the test if this occurrence brings it to quarantine.
 //
 // Quarantine. A test is quarantined while its record is open and carries the
@@ -137,9 +167,10 @@
 // A tracker that can't be reached never lets a failure through: nothing is
 // quarantined, so a quarantined test that fails both attempts fails the build,
 // and the run summary says the quarantine list was not read, and why. A
-// tracker that refuses a write, as GitHub does a fork PR's read-only token,
-// still answers the listing, so quarantine holds. Either way the run summary
-// says an occurrence was not recorded, or a test not quarantined, and why.
+// tracker that refuses writes but answers the listing keeps quarantine
+// holding, as GitHub does for a fork PR's read-only token, and GitLab for a
+// job token granted Read work items. Either way the run summary says an
+// occurrence was not recorded, or a test not quarantined, and why.
 //
 // The occurrence comment: lines for people giving the date, branch, job and
 // run link, then a last line, hidden when rendered, holding the same facts
@@ -175,46 +206,77 @@ const USAGE =
 // Settings ----------------------------------------------------------------
 
 // One row per flag. A flag left out takes the value `env` reads from the
-// environment, which is what GitHub Actions sets, and then `fallback`.
+// environment, which GitHub Actions or GitLab CI sets, and then `fallback`.
+// Where the default differs by tracker, `env` or `fallback` holds one per
+// tracker, so --tracker comes first.
 const FLAGS = [
+  { flag: '--tracker', env: (env) => env.VERDICT_TRACKER || (env.GITLAB_CI ? 'gitlab' : undefined), fallback: 'github' },
   { flag: '--results' },
   { flag: '--rerun' },
   { flag: '--summary', env: (env) => env.GITHUB_STEP_SUMMARY },
-  { flag: '--tracker-url', env: (env) => env.GITHUB_API_URL, fallback: 'https://api.github.com' },
-  { flag: '--repo', env: (env) => env.GITHUB_REPOSITORY },
-  { flag: '--branch', env: (env) => env.GITHUB_HEAD_REF || env.GITHUB_REF_NAME },
-  { flag: '--job', env: (env) => env.GITHUB_JOB },
-  { flag: '--run', env: (env) => env.GITHUB_RUN_ID },
+  {
+    flag: '--tracker-url',
+    env: { github: (env) => env.GITHUB_API_URL, gitlab: (env) => env.CI_API_V4_URL },
+    fallback: { github: 'https://api.github.com', gitlab: 'https://gitlab.com/api/v4' },
+  },
+  { flag: '--repo', env: { github: (env) => env.GITHUB_REPOSITORY, gitlab: (env) => env.CI_PROJECT_PATH } },
+  {
+    flag: '--branch',
+    env: {
+      github: (env) => env.GITHUB_HEAD_REF || env.GITHUB_REF_NAME,
+      gitlab: (env) => env.CI_MERGE_REQUEST_SOURCE_BRANCH_NAME || env.CI_COMMIT_REF_NAME,
+    },
+  },
+  { flag: '--job', env: { github: (env) => env.GITHUB_JOB, gitlab: (env) => env.CI_JOB_NAME } },
+  { flag: '--run', env: { github: (env) => env.GITHUB_RUN_ID, gitlab: (env) => env.CI_PIPELINE_ID } },
   {
     flag: '--run-url',
-    env: (env) =>
-      env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY && env.GITHUB_RUN_ID
-        ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`
-        : undefined,
+    env: {
+      github: (env) =>
+        env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY && env.GITHUB_RUN_ID
+          ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`
+          : undefined,
+      gitlab: (env) => env.CI_PIPELINE_URL,
+    },
   },
   { flag: '--flaky-label', fallback: 'flaky-test' },
   { flag: '--quarantine-label', fallback: 'quarantined' },
   { flag: '--quarantine-cap', fallback: '5%' },
 ];
 
+// The variables each tracker's token is read from, the first one set winning.
+const TOKENS = {
+  github: ['VERDICT_TRACKER_TOKEN', 'GITHUB_TOKEN'],
+  gitlab: ['VERDICT_TRACKER_TOKEN', 'CI_JOB_TOKEN'],
+};
+
 // --tracker-url is settings.trackerUrl.
 const key = (flag) => flag.slice(2).replace(/-(.)/g, (_, letter) => letter.toUpperCase());
+
+// A row's `env` or `fallback` for this tracker.
+const forTracker = (value, tracker) =>
+  value !== null && typeof value === 'object' ? (Object.hasOwn(value, tracker) ? value[tracker] : undefined) : value;
 
 // { settings } from the command line and environment, or { problem } saying
 // what is wrong.
 const readSettings = (argv, env) => {
   const split = argv.indexOf('--');
   const flags = split === -1 ? argv : argv.slice(0, split);
-  const settings = {
-    command: split === -1 ? [] : argv.slice(split + 1),
-    token: env.VERDICT_TRACKER_TOKEN || env.GITHUB_TOKEN || undefined,
-  };
+  const settings = { command: split === -1 ? [] : argv.slice(split + 1) };
   for (let i = 0; i < flags.length; i += 2) {
     if (!FLAGS.some((row) => row.flag === flags[i])) return { problem: `unknown argument ${flags[i]}` };
     if (flags[i + 1] === undefined) return { problem: `${flags[i]} needs a value` };
     settings[key(flags[i])] = flags[i + 1];
   }
-  for (const row of FLAGS) settings[key(row.flag)] ??= row.env?.(env) || row.fallback;
+  for (const row of FLAGS) {
+    settings[key(row.flag)] ??=
+      forTracker(row.env, settings.tracker)?.(env) || forTracker(row.fallback, settings.tracker);
+  }
+  if (!Object.hasOwn(TOKENS, settings.tracker)) {
+    return { problem: `--tracker takes github or gitlab, not "${settings.tracker}"` };
+  }
+  settings.tokenFrom = TOKENS[settings.tracker].find((name) => env[name]);
+  settings.token = settings.tokenFrom && env[settings.tokenFrom];
   if (!settings.results) return { problem: 'no --results file' };
   if (settings.command.length === 0) return { problem: 'no test command after --' };
   if (!/^\d+%?$/.test(settings.quarantineCap)) {
@@ -402,25 +464,17 @@ const TRACKER_TIMEOUT_MS = 30_000;
 // "Quarantine not read: ".
 class TrackerError extends Error {}
 
-// The GitHub adapter: the tracker operations the script uses, over GitHub's
-// REST API. A record is { number, title, url, open, labels }.
-const githubTracker = ({ trackerUrl, repo, token }) => {
-  const issues = `${trackerUrl.replace(/\/+$/, '')}/repos/${repo}/issues`;
-
-  // One request, answered with { data, next }: the parsed JSON and the next
-  // page's address, if any. `doing` completes "the tracker refused to ".
+// A tracker's REST API, sending these headers with every request. `call`
+// sends one request and answers { data, next }: the parsed JSON and the next
+// page's address from the Link header, if any. `callAll` answers every item
+// of a list, following its pages. `doing` completes "the tracker refused to ".
+const restApi = (trackerUrl, headers) => {
   const call = async (doing, method, url, body) => {
     let response;
     try {
       response = await fetch(url, {
         method,
-        headers: {
-          accept: 'application/vnd.github+json',
-          authorization: `Bearer ${token}`,
-          'content-type': 'application/json',
-          'user-agent': 'verdict.mjs',
-          'x-github-api-version': '2022-11-28',
-        },
+        headers: { 'content-type': 'application/json', 'user-agent': 'verdict.mjs', ...headers },
         body: body && JSON.stringify(body),
         signal: AbortSignal.timeout(TRACKER_TIMEOUT_MS),
       });
@@ -429,14 +483,13 @@ const githubTracker = ({ trackerUrl, repo, token }) => {
       throw new TrackerError(`the tracker at ${trackerUrl} could not be reached (${why})`);
     }
     if (!response.ok) {
-      const { message } = await response.json().catch(() => ({}));
-      throw new TrackerError(`the tracker refused to ${doing} (HTTP ${response.status}${message ? ` ${message}` : ''})`);
+      const reason = await reasonOf(response);
+      throw new TrackerError(`the tracker refused to ${doing} (HTTP ${response.status}${reason ? ` ${reason}` : ''})`);
     }
     const next = response.headers.get('link')?.match(/<([^>]+)>;\s*rel="next"/)?.[1];
     return { data: await response.json(), next };
   };
 
-  // Every item of a list, following GitHub's pages.
   const callAll = async (doing, url) => {
     const items = [];
     for (let page = url; page; ) {
@@ -446,6 +499,29 @@ const githubTracker = ({ trackerUrl, repo, token }) => {
     }
     return items;
   };
+
+  return { call, callAll };
+};
+
+// The reason an error response gives: GitHub's `message`, or GitLab's
+// `message` or `error`, without the status GitLab repeats at its start.
+const reasonOf = async (response) => {
+  const { message, error } = (await response.json().catch(() => null)) ?? {};
+  const reason = message ?? error;
+  if (reason === undefined || reason === null) return '';
+  const text = typeof reason === 'string' ? reason : JSON.stringify(reason);
+  return text.replace(new RegExp(`^${response.status}\\s+`), '');
+};
+
+// The GitHub adapter: the tracker operations the script uses, over GitHub's
+// REST API. A record is { number, title, url, open, labels }.
+const githubTracker = ({ trackerUrl, repo, token }) => {
+  const issues = `${trackerUrl.replace(/\/+$/, '')}/repos/${repo}/issues`;
+  const { call, callAll } = restApi(trackerUrl, {
+    accept: 'application/vnd.github+json',
+    authorization: `Bearer ${token}`,
+    'x-github-api-version': '2022-11-28',
+  });
 
   const record = (issue) => ({
     number: issue.number,
@@ -483,10 +559,57 @@ const githubTracker = ({ trackerUrl, repo, token }) => {
   };
 };
 
+// The GitLab adapter: the same operations over GitLab's REST API v4. A
+// record's number is its issue's iid, and a comment is a note.
+const gitlabTracker = ({ trackerUrl, repo, token, tokenFrom }) => {
+  const issues = `${trackerUrl.replace(/\/+$/, '')}/projects/${encodeURIComponent(repo)}/issues`;
+  const { call, callAll } = restApi(trackerUrl, {
+    [tokenFrom === 'CI_JOB_TOKEN' ? 'job-token' : 'private-token']: token,
+  });
+
+  const record = (issue) => ({
+    number: issue.iid,
+    title: issue.title,
+    url: issue.web_url,
+    open: issue.state === 'opened',
+    labels: issue.labels ?? [],
+  });
+
+  return {
+    listRecords: async (label) =>
+      (await callAll('list the flaky-test records', `${issues}?labels=${encodeURIComponent(label)}&state=all&per_page=100`)).map(
+        record,
+      ),
+    // GitLab takes label names comma-separated, and no label name holds a comma.
+    createRecord: async ({ title, body, labels }) =>
+      record((await call('create the record', 'POST', issues, { title, description: body, labels: labels.join(',') })).data),
+    reopenRecord: async (target) => {
+      await call('reopen the record', 'PUT', `${issues}/${target.number}`, { state_event: 'reopen' });
+    },
+    // GitLab lists notes newest first unless asked otherwise. Its own system
+    // notes, such as "reopened", come too, and hold no occurrence.
+    listComments: async (target) =>
+      (
+        await callAll("read the record's comments", `${issues}/${target.number}/notes?sort=asc&order_by=created_at&per_page=100`)
+      ).map((note) => note.body),
+    addComment: async (target, body) => {
+      await call('comment on the record', 'POST', `${issues}/${target.number}/notes`, { body });
+    },
+    addLabel: async (target, label) => {
+      await call('label the record', 'PUT', `${issues}/${target.number}`, { add_labels: label });
+    },
+    removeLabel: async (target, label) => {
+      await call('unlabel the record', 'PUT', `${issues}/${target.number}`, { remove_labels: label });
+    },
+  };
+};
+
+const ADAPTERS = { github: githubTracker, gitlab: gitlabTracker };
+
 // The settings named by these flags, and the token, that are missing.
 const lacking = (settings, flags) => [
   ...flags.filter((flag) => !settings[key(flag)]),
-  ...(settings.token ? [] : ['a token in VERDICT_TRACKER_TOKEN or GITHUB_TOKEN']),
+  ...(settings.token ? [] : [`a token in ${TOKENS[settings.tracker].join(' or ')}`]),
 ];
 
 // What went wrong with the tracker, as a phrase that completes "Not recorded: ".
@@ -499,7 +622,7 @@ const trackerProblem = (error, doing) =>
 const readRecords = async (settings) => {
   const missing = lacking(settings, ['--repo']);
   if (missing.length > 0) return { problem: `the tracker settings lack ${listOf(missing)}` };
-  const tracker = githubTracker(settings);
+  const tracker = ADAPTERS[settings.tracker](settings);
   try {
     return { tracker, records: await tracker.listRecords(settings.flakyLabel) };
   } catch (error) {
