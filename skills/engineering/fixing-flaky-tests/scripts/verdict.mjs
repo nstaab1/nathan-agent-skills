@@ -78,7 +78,14 @@
 //                  flaky-test.
 //
 // The token never comes from a flag, which keeps it out of logs and process
-// lists. It must be able to read and write issues.
+// lists. It must be able to read and write issues. The test command and the
+// rerun command run without $VERDICT_TRACKER_TOKEN and the variable the token
+// came from, such as $GITHUB_TOKEN, so no test can write to the tracker with
+// it.
+//
+//   --keep-token   A variable to leave in the environment of both commands
+//                  after all, for a suite whose own tests need it, such as
+//                  GITHUB_TOKEN.
 //
 // On GitHub it comes from $VERDICT_TRACKER_TOKEN, then $GITHUB_TOKEN. On
 // GitHub Actions that is the job's own token with
@@ -251,6 +258,7 @@ const FLAGS = [
   '--flaky-label',
   '--quarantine-label',
   '--quarantine-cap',
+  '--keep-token',
 ];
 
 // A flag left out takes its default: the tracker's own, from TRACKERS, or
@@ -399,14 +407,25 @@ const failedIn = (results) => [...results.values()].filter((testcase) => testcas
 // Attempts ----------------------------------------------------------------
 
 // Runs one attempt of `command`: the test command, a list of arguments run
-// without a shell, or the rerun command, a string the shell runs. Each
-// attempt starts with no results file, so a run that writes none can't be
-// read as the one before it.
-const runAttempt = (results, command) => {
+// without a shell, or the rerun command, a string the shell runs, in the
+// environment `env`. Each attempt starts with no results file, so a run that
+// writes none can't be read as the one before it.
+const runAttempt = (results, command, env) => {
   rmSync(results, { force: true });
   return typeof command === 'string'
-    ? spawnSync(command, { stdio: 'inherit', shell: true })
-    : spawnSync(command[0], command.slice(1), { stdio: 'inherit' });
+    ? spawnSync(command, { stdio: 'inherit', shell: true, env })
+    : spawnSync(command[0], command.slice(1), { stdio: 'inherit', env });
+};
+
+// The environment the attempts run in: the script's own, without the tracker
+// token, so no test can write to the tracker with it, unless --keep-token
+// names its variable.
+const attemptEnv = (settings, env) => {
+  const kept = { ...env };
+  for (const variable of ['VERDICT_TRACKER_TOKEN', settings.token?.variable]) {
+    if (variable && variable !== settings.keepToken) delete kept[variable];
+  }
+  return kept;
 };
 
 const exitOf = ({ status, signal, error }) => {
@@ -425,13 +444,13 @@ const exitOf = ({ status, signal, error }) => {
 // which neither fail it nor count as flake occurrences, and which the run
 // summary names. Also the size of the suite: how many tests attempt 1's
 // results file holds.
-const judge = (settings) => {
+const judge = (settings, env) => {
   const buildFailures = [];
   const stillFailing = [];
   const occurrences = [];
   const failedOnRerun = [];
 
-  const attempt1 = runAttempt(settings.results, settings.command);
+  const attempt1 = runAttempt(settings.results, settings.command, attemptEnv(settings, env));
   const results1 = readResults(settings.results);
   if (!results1) {
     buildFailures.push(
@@ -449,7 +468,7 @@ const judge = (settings) => {
     return { buildFailures, stillFailing, occurrences, failedOnRerun, suite };
   }
 
-  const attempt2 = runAttempt(settings.results, settings.rerun || settings.command);
+  const attempt2 = runAttempt(settings.results, settings.rerun || settings.command, attemptEnv(settings, env));
   const results2 = readResults(settings.results);
   if (!results2) {
     buildFailures.push(
@@ -964,7 +983,7 @@ if (problem) {
   process.exit(2);
 }
 
-const { buildFailures, stillFailing, occurrences, failedOnRerun, suite } = judge(settings);
+const { buildFailures, stillFailing, occurrences, failedOnRerun, suite } = judge(settings, process.env);
 const records =
   stillFailing.length > 0 || occurrences.length > 0 ? await readRecords(settings) : flakyRecords(settings, {});
 // A quarantined test's failure is ignored, unless its quarantine label is left

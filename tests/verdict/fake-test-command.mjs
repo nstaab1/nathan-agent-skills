@@ -3,14 +3,16 @@
 // naming the results file and what each run does, then performs the next run:
 // it writes that run's JUnit XML, or nothing when the run has no `xml`, and
 // exits with that run's code. A run beyond the plan writes nothing and exits
-// 99, so an attempt the test did not expect reads as a crash.
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+// 99, so an attempt the test did not expect reads as a crash. Every run adds
+// the environment it was given to `<plan>.env`, one JSON line per run.
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 const planFile = process.argv[2];
 const { results, runs } = JSON.parse(readFileSync(planFile, 'utf8'));
 const countFile = `${planFile}.count`;
 const count = existsSync(countFile) ? Number(readFileSync(countFile, 'utf8')) : 0;
 writeFileSync(countFile, String(count + 1));
+appendFileSync(`${planFile}.env`, `${JSON.stringify(process.env)}\n`);
 
 const run = runs[count];
 if (!run) {

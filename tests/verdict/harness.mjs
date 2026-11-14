@@ -104,6 +104,8 @@ const scriptEnv = (extra = {}) => {
 // summaryIn: 'flag' passes --summary; 'github' sets GITHUB_STEP_SUMMARY.
 // flags: more arguments for the script, before the `--`.
 // env: more environment variables for the script.
+// Besides the exit code, output and summary, it hands back commandEnvs: the
+// environment each run of the test command and the rerun command was given.
 export const runVerdict = async ({ testRuns, rerunRuns, stale, summaryIn = 'flag', flags = [], env: extraEnv }) => {
   const dir = mkdtempSync(join(tmpdir(), 'verdict-'));
   try {
@@ -128,7 +130,11 @@ export const runVerdict = async ({ testRuns, rerunRuns, stale, summaryIn = 'flag
     args.push('--', ...fakeCommand('test', testRuns));
 
     const { code, output } = await spawnAndWait(process.execPath, args, { cwd: dir, env });
-    return { code, output, summary: existsSync(summary) ? readFileSync(summary, 'utf8') : '' };
+    const commandEnvs = ['test', 'rerun'].flatMap((planName) => {
+      const seen = join(dir, `${planName}.json.env`);
+      return existsSync(seen) ? readFileSync(seen, 'utf8').trim().split('\n').map((line) => JSON.parse(line)) : [];
+    });
+    return { code, output, summary: existsSync(summary) ? readFileSync(summary, 'utf8') : '', commandEnvs };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runVerdict, runVerdictWith, junit, passed, lineAbout, recordingTo, trackerTest, github, gitlab, occurrencesOn, OCCURRENCE, suite, earlier } from './harness.mjs';
+import { runVerdict, runVerdictWith, junit, passed, failed, lineAbout, recordingTo, trackerTest, github, gitlab, occurrencesOn, OCCURRENCE, suite, earlier } from './harness.mjs';
 
 // The failures this guards: a flake occurrence that never reaches its
 // flaky-test record, a record created twice for one test, a run counted twice
@@ -228,6 +228,53 @@ test('on GitLab CI the tracker and its settings come from the job environment', 
         { branch: 'feature/cart', job: 'test: [ubuntu, 22]', run: '4242', run_url: 'https://gitlab.example/acme/web/shop/-/pipelines/4242' },
         { branch: 'main', job: 'test: [ubuntu, 22]', run: '4243', run_url: 'https://gitlab.example/acme/web/shop/-/pipelines/4243' },
       ],
+    );
+  }));
+
+trackerTest('the test command and the rerun command run without the tracker token, and with the rest of the environment', ({ withTracker }) =>
+  withTracker({}, async (tracker) => {
+    const { flags, env } = recordingTo(tracker);
+    const { code, output, commandEnvs } = await runVerdict({
+      testRuns: [{ exit: 1, xml: junit(passed(...TAX), failed(...CHECKOUT)) }],
+      rerunRuns: [{ exit: 0, xml: junit(passed(...CHECKOUT)) }],
+      flags,
+      env: { ...env, SUITE_SETTING: 'kept' },
+    });
+    assert.equal(code, 0, output);
+    assert.equal(occurrencesOn(tracker.records[0]).length, 1, 'the script itself still has the token');
+    assert.equal(commandEnvs.length, 2, 'one test command run and one rerun');
+    for (const seen of commandEnvs) {
+      assert.equal(seen.VERDICT_TRACKER_TOKEN, undefined);
+      assert.equal(seen.SUITE_SETTING, 'kept');
+    }
+  }));
+
+test('on GitHub Actions the test command runs without GITHUB_TOKEN when it holds the tracker token, unless --keep-token keeps it', () =>
+  github.withTracker({}, async (tracker) => {
+    const actions = {
+      GITHUB_API_URL: tracker.url,
+      GITHUB_REPOSITORY: tracker.repo,
+      GITHUB_TOKEN: tracker.token,
+      GITHUB_SERVER_URL: 'https://github.example',
+      GITHUB_JOB: 'test',
+      GITHUB_REF_NAME: 'main',
+    };
+    for (const [run, flags, kept] of [
+      ['4242', [], undefined],
+      ['4243', ['--keep-token', 'GITHUB_TOKEN'], tracker.token],
+    ]) {
+      const { code, output, commandEnvs } = await runVerdict({
+        ...suite({ flaky: [CHECKOUT] }),
+        flags,
+        env: { ...actions, GITHUB_RUN_ID: run },
+      });
+      assert.equal(code, 0, output);
+      assert.equal(commandEnvs.length, 2);
+      for (const seen of commandEnvs) assert.equal(seen.GITHUB_TOKEN, kept, `flags: ${flags.join(' ')}`);
+    }
+    assert.deepEqual(
+      occurrencesOn(tracker.records[0]).map(({ run }) => run),
+      ['4242', '4243'],
     );
   }));
 
