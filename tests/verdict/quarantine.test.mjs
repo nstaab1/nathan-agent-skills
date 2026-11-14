@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runVerdict, runVerdictWith, junit, passed, failed, lineAbout, recordingTo, trackerTest, gitlab } from './harness.mjs';
+import { runVerdict, runVerdictWith, junit, passed, failed, lineAbout, recordingTo, trackerTest, gitlab, suite, earlier } from './harness.mjs';
 
 // The failures this guards: a quarantined test that still fails the build; a
 // failure let through by a quarantine read from a closed record, or from a
@@ -17,21 +17,6 @@ const CHECKOUT_TITLE = 'tests.test_cart test_checkout_total';
 const TAX = ['tests.test_tax', 'test_vat_rounding'];
 const TAX_TITLE = 'tests.test_tax test_vat_rounding';
 
-// An earlier flake occurrence as the comment the script writes, in the marker
-// format the script's header documents, from `daysAgo` days before now.
-const DAY_MS = 24 * 60 * 60 * 1000;
-let runs = 1000;
-const earlier = ({ daysAgo = 1, branch = 'main', run = String(++runs), reopened } = {}) => {
-  const date = new Date(Date.now() - daysAgo * DAY_MS).toISOString().replace(/\.\d+Z$/, 'Z');
-  const run_url = `https://ci.example/acme/shop/runs/${run}`;
-  const data = { date, branch, job: 'test', run, run_url, ...(reopened && { reopened }) };
-  return [
-    'Flake occurrence: failed on attempt 1 and passed on attempt 2.',
-    '',
-    `<!-- verdict-occurrence ${JSON.stringify(data)} -->`,
-  ].join('\n');
-};
-
 // Two recent occurrences on two branches: the next occurrence, from any
 // branch, brings the record to quarantine.
 const twoOccurrences = () => [earlier({ daysAgo: 3, branch: 'main' }), earlier({ daysAgo: 1, branch: 'feature/tax' })];
@@ -39,22 +24,6 @@ const twoOccurrences = () => [earlier({ daysAgo: 3, branch: 'main' }), earlier({
 // Open records of other tests, already quarantined.
 const quarantinedOthers = (count) =>
   Array.from({ length: count }, (_, i) => ({ title: `tests.test_other test_q${i}`, labels: ['flaky-test', 'quarantined'] }));
-
-// Test command runs over a suite of `size` tests, in which each `flaky` test
-// fails on attempt 1 and passes on attempt 2, each `broken` test fails on both
-// attempts, and the rest pass.
-const suite = ({ size = 40, flaky = [], broken = [] }) => {
-  const others = Array.from({ length: size - flaky.length - broken.length }, (_, i) =>
-    passed('tests.test_other', `test_${i}`),
-  );
-  const failing = broken.map((test) => failed(...test));
-  return {
-    testRuns: [
-      { exit: 1, xml: junit(...others, ...flaky.map((test) => failed(...test)), ...failing) },
-      { exit: failing.length ? 1 : 0, xml: junit(...others, ...flaky.map((test) => passed(...test)), ...failing) },
-    ],
-  };
-};
 
 trackerTest('a test that fails both attempts does not fail the build while its open record carries the quarantine label', ({ withTracker }) =>
   withTracker({ records: [{ title: CHECKOUT_TITLE, labels: ['flaky-test', 'quarantined'] }] }, async (tracker) => {
@@ -361,20 +330,20 @@ trackerTest('--flaky-label and --quarantine-label set the label names quarantine
   withTracker(
     {
       records: [
-        { title: CHECKOUT_TITLE, labels: ['ci-flake', 'ci-quarantine'] },
-        { title: TAX_TITLE, labels: ['ci-flake'], comments: twoOccurrences() },
+        { title: CHECKOUT_TITLE, labels: ['ci-flaky', 'ci-quarantine'] },
+        { title: TAX_TITLE, labels: ['ci-flaky'], comments: twoOccurrences() },
       ],
     },
     async (tracker) => {
       const { flags, env } = recordingTo(tracker, { branch: 'feature/cart' });
       const { code, summary, output } = await runVerdict({
         ...suite({ broken: [CHECKOUT], flaky: [TAX] }),
-        flags: [...flags, '--flaky-label', 'ci-flake', '--quarantine-label', 'ci-quarantine'],
+        flags: [...flags, '--flaky-label', 'ci-flaky', '--quarantine-label', 'ci-quarantine'],
         env,
       });
       assert.equal(code, 0, output);
       assert.match(lineAbout(summary, CHECKOUT_TITLE), /ignored/i);
-      assert.deepEqual(tracker.records[1].labels, ['ci-flake', 'ci-quarantine']);
+      assert.deepEqual(tracker.records[1].labels, ['ci-flaky', 'ci-quarantine']);
       assert.match(lineAbout(summary, TAX_TITLE), /now quarantined.*`ci-quarantine`/i);
     },
   ));
