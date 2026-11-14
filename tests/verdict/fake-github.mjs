@@ -4,7 +4,11 @@
 // lists through the Link header, refuses a wrong token with 401 and, when
 // readOnly, refuses every write with 403, as GitHub does for a fork PR's token.
 // `refuse` picks other requests to refuse with 403: it is given each request's
-// { method, path, action } and returns true to refuse it.
+// { method, path, action } and returns true to refuse it. Like GitHub, it logs
+// an issue's events: each close, reopen, label added and label removed, with
+// its time. A record given to start with may give its earlier `history`, as
+// { action, label, date }, where action is closed, reopened, labeled or
+// unlabeled.
 //
 // Its `records` view and each logged request's `action`, which says what the
 // request asks the tracker to do, read the same as fake-gitlab.mjs's, so one
@@ -14,6 +18,7 @@ import { createServer } from 'node:http';
 // What a request asks the tracker to do, in the words fake-gitlab.mjs uses.
 const actionOf = (method, number, sub, rest, body) => {
   if (sub === 'comments' && rest.length === 0) return { GET: 'list comments', POST: 'add comment' }[method];
+  if (sub === 'events' && rest.length === 0) return { GET: 'list events' }[method];
   if (sub === 'labels') return { POST: 'add label', DELETE: 'remove label' }[method];
   if (sub) return undefined;
   if (!number) return { GET: 'list records', POST: 'create record' }[method];
@@ -34,15 +39,40 @@ export const startFakeGitHub = async ({
   const issues = [];
   const requests = [];
   let commentIds = 0;
+  let eventIds = 0;
   let base;
 
   const comment = (body) => ({ id: ++commentIds, body });
-  const addIssue = ({ title, body = '', state = 'open', labels = ['flaky-test'], comments = [] }) => {
-    const issue = { number: issues.length + 1, title, body, state, labels: [...labels], comments: comments.map(comment) };
+  // GitHub gives an event's time to the second.
+  const event = ({ action, label, date = new Date().toISOString().replace(/\.\d+Z$/, 'Z') }) => ({
+    id: ++eventIds,
+    event: action,
+    created_at: date,
+    ...(label && { label: { name: label } }),
+  });
+  const addIssue = ({ title, body = '', state = 'open', labels = ['flaky-test'], comments = [], history = [] }) => {
+    const issue = {
+      number: issues.length + 1,
+      title,
+      body,
+      state,
+      labels: [...labels],
+      comments: comments.map(comment),
+      events: history.map(event),
+    };
     issues.push(issue);
     return issue;
   };
   for (const record of records) addIssue(record);
+
+  // Sets an issue's state and labels, logging an event for each change.
+  const change = (issue, { state = issue.state, labels = issue.labels }) => {
+    if (state !== issue.state) issue.events.push(event({ action: state === 'open' ? 'reopened' : 'closed' }));
+    for (const label of labels) if (!issue.labels.includes(label)) issue.events.push(event({ action: 'labeled', label }));
+    for (const label of issue.labels) if (!labels.includes(label)) issue.events.push(event({ action: 'unlabeled', label }));
+    issue.state = state;
+    issue.labels = [...labels];
+  };
 
   const issueJson = (issue) => ({
     number: issue.number,
@@ -104,22 +134,29 @@ export const startFakeGitHub = async ({
       return sendPage(res, url, found.map(issueJson));
     }
     if (!number && req.method === 'POST') {
-      return send(res, 201, issueJson(addIssue({ title: body.title, body: body.body, labels: body.labels ?? [] })));
+      const created = addIssue({ title: body.title, body: body.body, labels: [] });
+      change(created, { labels: body.labels ?? [] });
+      return send(res, 201, issueJson(created));
     }
     if (!sub && rest.length === 0 && req.method === 'PATCH') {
-      if (body.state) issue.state = body.state;
-      if (body.labels) issue.labels = body.labels.map((label) => (typeof label === 'string' ? label : label.name));
+      change(issue, {
+        state: body.state,
+        labels: body.labels?.map((label) => (typeof label === 'string' ? label : label.name)),
+      });
       return send(res, 200, issueJson(issue));
     }
     if (sub === 'labels' && rest.length === 0 && req.method === 'POST') {
-      for (const label of body.labels) if (!issue.labels.includes(label)) issue.labels.push(label);
+      change(issue, { labels: [...issue.labels, ...body.labels.filter((label) => !issue.labels.includes(label))] });
       return send(res, 200, issue.labels.map((name) => ({ name })));
     }
     if (sub === 'labels' && rest.length === 1 && req.method === 'DELETE') {
       const label = decodeURIComponent(rest[0]);
       if (!issue.labels.includes(label)) return send(res, 404, { message: 'Label does not exist' });
-      issue.labels = issue.labels.filter((each) => each !== label);
+      change(issue, { labels: issue.labels.filter((each) => each !== label) });
       return send(res, 200, issue.labels.map((name) => ({ name })));
+    }
+    if (sub === 'events' && rest.length === 0 && req.method === 'GET') {
+      return sendPage(res, url, issue.events);
     }
     if (sub === 'comments' && rest.length === 0 && req.method === 'GET') {
       return sendPage(res, url, issue.comments.map((each) => commentJson(issue, each)));

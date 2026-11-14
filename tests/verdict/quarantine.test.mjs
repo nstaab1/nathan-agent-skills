@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runVerdict, runVerdictWith, junit, passed, failed, lineAbout, recordingTo, trackerTest, gitlab, suite, earlier } from './harness.mjs';
+import { runVerdict, runVerdictWith, junit, passed, failed, lineAbout, recordingTo, trackerTest, gitlab, suite, earlier, daysAgo } from './harness.mjs';
 
 // The failures this guards: a quarantined test that still fails the build; a
 // failure let through by a quarantine read from a closed record, or from a
@@ -446,3 +446,115 @@ trackerTest('a quarantined record of another test with the same title does not q
     assert.equal(code, 1);
     assert.doesNotMatch(lineAbout(summary, 'failed on both attempts'), /ignored/i);
   }));
+
+// A record's history when a fix closed it two days ago and a person reopened
+// it by hand a day later.
+const reopenedByHand = (...before) => [
+  ...before,
+  { action: 'closed', date: daysAgo(2) },
+  { action: 'reopened', date: daysAgo(1) },
+];
+
+trackerTest('occurrences from before a person reopened the record do not count toward quarantine', ({ withTracker }) =>
+  withTracker(
+    {
+      records: [
+        {
+          title: CHECKOUT_TITLE,
+          comments: [earlier({ daysAgo: 4, branch: 'main' }), earlier({ daysAgo: 3, branch: 'feature/tax' })],
+          history: reopenedByHand(),
+        },
+      ],
+    },
+    async (tracker) => {
+      const { code, summary, output } = await runVerdict({
+        ...suite({ flaky: [CHECKOUT] }),
+        ...recordingTo(tracker, { branch: 'feature/cart' }),
+      });
+      assert.equal(code, 0, output);
+      assert.deepEqual(tracker.records[0].labels, ['flaky-test']);
+      const line = lineAbout(summary, CHECKOUT_TITLE);
+      assert.match(line, /1 occurrence on 1 branch in 30 days/i);
+      assert.doesNotMatch(line, /quarantined/i);
+    },
+  ));
+
+trackerTest('a quarantine label left from before the record closed does not quarantine the test once a person reopens it', ({ withTracker }) =>
+  withTracker(
+    {
+      records: [
+        {
+          title: CHECKOUT_TITLE,
+          labels: ['flaky-test', 'quarantined'],
+          history: reopenedByHand({ action: 'labeled', label: 'quarantined', date: daysAgo(10) }),
+        },
+      ],
+    },
+    async (tracker) => {
+      const { code, summary } = await runVerdict({ ...suite({ broken: [CHECKOUT] }), ...recordingTo(tracker) });
+      assert.equal(code, 1);
+      assert.match(summary, /verdict: fail/i);
+      const line = lineAbout(summary, CHECKOUT_TITLE);
+      assert.doesNotMatch(line, /ignored/i);
+      assert.match(line, /from before it last closed/i);
+    },
+  ));
+
+trackerTest('a flake occurrence on a record a person reopened takes off the quarantine label left from before it closed', ({ withTracker }) =>
+  withTracker(
+    {
+      records: [
+        {
+          title: CHECKOUT_TITLE,
+          labels: ['flaky-test', 'quarantined'],
+          comments: [earlier({ daysAgo: 4, branch: 'main' }), earlier({ daysAgo: 3, branch: 'feature/tax' })],
+          history: reopenedByHand({ action: 'labeled', label: 'quarantined', date: daysAgo(10) }),
+        },
+      ],
+    },
+    async (tracker) => {
+      const { code, summary, output } = await runVerdict({
+        ...suite({ flaky: [CHECKOUT] }),
+        ...recordingTo(tracker, { branch: 'feature/cart' }),
+      });
+      assert.equal(code, 0, output);
+      assert.deepEqual(tracker.records[0].labels, ['flaky-test']);
+      const line = lineAbout(summary, CHECKOUT_TITLE);
+      assert.match(line, /took off its `quarantined` label/i);
+      assert.match(line, /1 occurrence on 1 branch in 30 days/i);
+      assert.doesNotMatch(line, /already quarantined/i);
+    },
+  ));
+
+trackerTest('a quarantine label put on after a person reopened the record still quarantines the test', ({ withTracker }) =>
+  withTracker(
+    {
+      records: [
+        {
+          title: CHECKOUT_TITLE,
+          labels: ['flaky-test', 'quarantined'],
+          history: [...reopenedByHand(), { action: 'labeled', label: 'quarantined', date: daysAgo(0.5) }],
+        },
+      ],
+    },
+    async (tracker) => {
+      const { code, summary, output } = await runVerdict({ ...suite({ broken: [CHECKOUT] }), ...recordingTo(tracker) });
+      assert.equal(code, 0, output);
+      assert.match(lineAbout(summary, CHECKOUT_TITLE), /ignored.*quarantined/i);
+    },
+  ));
+
+trackerTest('when the tracker lists the records but refuses to read a record\'s history, its quarantine label stands, and the summary says so', ({ withTracker }) =>
+  withTracker(
+    {
+      records: [{ title: CHECKOUT_TITLE, labels: ['flaky-test', 'quarantined'], history: reopenedByHand() }],
+      refuse: ({ action }) => /events/.test(action ?? ''),
+    },
+    async (tracker) => {
+      const { code, summary, output } = await runVerdict({ ...suite({ broken: [CHECKOUT] }), ...recordingTo(tracker) });
+      assert.equal(code, 0, output);
+      const line = lineAbout(summary, CHECKOUT_TITLE);
+      assert.match(line, /ignored.*quarantined/i);
+      assert.match(line, /history .*refused .*403/i);
+    },
+  ));

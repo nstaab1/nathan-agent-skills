@@ -58,13 +58,17 @@ export const suite = ({ size = 40, flaky = [], broken = [] }) => {
   };
 };
 
+// The time `days` days before now, in UTC to the second, as the script and
+// the trackers write times.
+const DAY_MS = 24 * 60 * 60 * 1000;
+export const daysAgo = (days) => new Date(Date.now() - days * DAY_MS).toISOString().replace(/\.\d+Z$/, 'Z');
+
 // An earlier flake occurrence as the comment the script writes, in the marker
 // format the script's header documents, from `daysAgo` days before now. Each
 // gets a run of its own unless given one.
-const DAY_MS = 24 * 60 * 60 * 1000;
 let runs = 1000;
-export const earlier = ({ daysAgo = 1, branch = 'main', job = 'test', run = String(++runs), reopened } = {}) => {
-  const date = new Date(Date.now() - daysAgo * DAY_MS).toISOString().replace(/\.\d+Z$/, 'Z');
+export const earlier = ({ daysAgo: days = 1, branch = 'main', job = 'test', run = String(++runs), reopened } = {}) => {
+  const date = daysAgo(days);
   const run_url = `https://ci.example/acme/shop/runs/${run}`;
   const data = { date, branch, job, run, run_url, ...(reopened && { reopened }) };
   return [

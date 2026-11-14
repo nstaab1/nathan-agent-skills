@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// verdict.mjs version 0.4.0
+// verdict.mjs version 0.5.0
 //
 // The verdict script. It runs a CI job's test command, reruns the failures
 // once, records each flake occurrence on the test's flaky-test record in the
@@ -122,32 +122,45 @@
 //      and ready-for-agent. Its body gives the identity in two lines,
 //      "- Classname: " and "- Name: ", each followed by the value as Markdown
 //      inline code, which reads back exactly by CommonMark's rules.
-//   3. A record that already holds an occurrence with this --run: leave it.
+//   3. An open record: read its history, when it last closed and when the
+//      quarantine label last went on it.
+//   4. A record that already holds an occurrence with this --run: leave it.
 //      Every job of a run runs the script, and the run is one occurrence.
-//   4. A closed record: take off the quarantine label if it kept one, then
-//      reopen it.
-//   5. Add the occurrence as a comment on the record, which GitLab calls a
+//   5. A closed record: take off the quarantine label if it kept one, then
+//      reopen it. An open record: take off a quarantine label left from
+//      before it last closed.
+//   6. Add the occurrence as a comment on the record, which GitLab calls a
 //      note.
-//   6. Quarantine the test if this occurrence brings it to quarantine.
+//   7. Quarantine the test if this occurrence brings it to quarantine.
 //
 // Quarantine. A test is quarantined while its record is open and carries the
-// quarantine label, so closing the record ends it. The script reads the
-// quarantine list from the same listing of records, and a quarantined test
-// that failed attempt 1 and didn't pass attempt 2 doesn't fail the build.
-// The script never takes the label off an open record; the scheduled
-// flaky-test agent removes it when quarantine expires.
+// quarantine label, put on since the record last closed, so closing the
+// record ends it. A label left from before a close quarantines nothing. A
+// record that was closed while quarantined keeps its label, and stays out of
+// quarantine whether the script reopens it, taking the label off first, or a
+// person does, leaving it on.
+//
+// The script reads the quarantine list from the same listing of records. A
+// quarantined test that failed attempt 1 and didn't pass attempt 2 doesn't
+// fail the build, once the record's history shows the label went on after the
+// record last closed. When the history can't be read, as with a GitLab job
+// token, the label stands as the listing shows it, and the run summary says
+// so. The script takes a label off an open record only when it is left from
+// before a close and the test has a flake occurrence. The scheduled
+// flaky-test agent removes it when quarantine expires, and removes a label
+// left from before a close on its next run. Until then, such a label counts
+// toward the cap.
 //
 // A record enters quarantine when, after an occurrence is recorded, its
 // occurrences that count number at least 3 and span at least 2 branches, and
 // the cap allows one more. The occurrences that count are read from the
 // record's markers, and are:
-//   - those from the last one holding "reopened":true on, that one included,
-//     so a fixed test that flakes again starts a new count;
+//   - those since the record was last reopened, by the script or a person:
+//     dated after it last closed, and from the last one holding
+//     "reopened":true on, that one included, so a fixed test starts a new
+//     count at its next flake occurrence;
 //   - of those, the ones dated no more than 30 days before this run;
 //   - with each run counted once, should two of its jobs both record it.
-// A record that was closed while quarantined keeps its label. The occurrence
-// that reopens it takes the label off first, so the record leaves quarantine
-// and its count starts again at 1.
 //
 // The cap. The quarantined tests are the open records carrying the quarantine
 // label, across the whole repo, plus any this job quarantines. A whole-number
@@ -163,11 +176,19 @@
 // Tracker requests. A job sends none when no test failed attempt 1. Otherwise
 // it sends one listing request per 100 records, which also serves the
 // quarantine list.
-// Then, per occurrence: for a new record, a create and a comment; for an
-// existing one, one request per 100 of its comments, then, if it was closed, a
-// label removal when it kept the quarantine label and a reopen, then a
-// comment; and one label request when the occurrence quarantines the test. A
-// test that failed both attempts costs nothing beyond the listing.
+//
+// Reading an open record's history takes one request per 100 of its events
+// on GitHub. On GitLab it takes one per 100 of its state events, and one per
+// 100 of its label events when the record carries the quarantine label and
+// has closed before.
+//
+// Then, per occurrence: for a new record, a create and a comment. For an
+// existing one, one request per 100 of its comments, its history when it is
+// open, a label removal when it kept the quarantine label from before a
+// close, a reopen when it was closed, then a comment. And one label request
+// when the occurrence quarantines the test. A test that failed both attempts
+// costs nothing beyond the listing, unless its record carries the quarantine
+// label, which costs that record's history.
 //
 // A tracker that can't be reached never lets a failure through: nothing is
 // quarantined, so a quarantined test that fails both attempts fails the build,
@@ -196,7 +217,9 @@
 // block saying so for each such test; then one bullet per reason the build
 // fails, one saying the quarantine list was not read when that left a failure
 // standing, one per failure ignored because its test is quarantined, and one
-// per flake occurrence. An occurrence's bullet names the test as
+// per flake occurrence. A failure whose record carries a quarantine label left
+// from before it last closed says so, and so does an ignored failure whose
+// record's history couldn't be read. An occurrence's bullet names the test as
 // `<classname> <name>`, then links the record it was recorded on, or says why
 // it was not recorded. A recorded occurrence's bullet then gives its count
 // toward quarantine, such as "Quarantine count: 2 occurrences on 1 branch in
@@ -502,6 +525,10 @@ const reasonOf = async (response) => {
   return text.replace(new RegExp(`^${response.status}\\s+`), '');
 };
 
+// The time of the latest of these events, in milliseconds, or undefined when
+// there are none.
+const latest = (events) => (events.length > 0 ? Math.max(...events.map((event) => Date.parse(event.created_at))) : undefined);
+
 // The GitHub adapter: the tracker operations the script uses, over GitHub's
 // REST API. A record is { number, title, url, open, labels, body }.
 const githubTracker = ({ trackerUrl, repo, token }) => {
@@ -511,6 +538,15 @@ const githubTracker = ({ trackerUrl, repo, token }) => {
     'x-github-api-version': '2022-11-28',
     ...token.headers,
   });
+
+  // A record's events, read once: each close, reopen, label added and more.
+  const events = new Map();
+  const eventsOf = (target) => {
+    if (!events.has(target.number)) {
+      events.set(target.number, callAll("read the record's history", `${issues}/${target.number}/events?per_page=100`));
+    }
+    return events.get(target.number);
+  };
 
   const record = (issue) => ({
     number: issue.number,
@@ -546,6 +582,11 @@ const githubTracker = ({ trackerUrl, repo, token }) => {
     removeLabel: async (target, label) => {
       await call('unlabel the record', 'DELETE', `${issues}/${target.number}/labels/${encodeURIComponent(label)}`);
     },
+    // When the record last closed, or undefined when it never has.
+    lastClosed: async (target) => latest((await eventsOf(target)).filter((event) => event.event === 'closed')),
+    // When the label last went on the record, or undefined when it never has.
+    lastLabelled: async (target, label) =>
+      latest((await eventsOf(target)).filter((event) => event.event === 'labeled' && event.label?.name === label)),
   };
 };
 
@@ -590,6 +631,18 @@ const gitlabTracker = ({ trackerUrl, repo, token }) => {
     removeLabel: async (target, label) => {
       await call('unlabel the record', 'PUT', `${issues}/${target.number}`, { remove_labels: label });
     },
+    lastClosed: async (target) =>
+      latest(
+        (await callAll("read the record's history", `${issues}/${target.number}/resource_state_events?per_page=100`)).filter(
+          (event) => event.state === 'closed',
+        ),
+      ),
+    lastLabelled: async (target, label) =>
+      latest(
+        (await callAll("read the record's history", `${issues}/${target.number}/resource_label_events?per_page=100`)).filter(
+          (event) => event.action === 'add' && event.label?.name === label,
+        ),
+      ),
   };
 };
 
@@ -658,6 +711,13 @@ const flakyRecords = (settings, { tracker, list = [], problem }) => {
     of: (identity) => matching(identity)[0],
     // The test's quarantined record, if it has one.
     quarantinedOf: (identity) => matching(identity).find(quarantined),
+    // When an open record last closed, and whether the quarantine label it
+    // carries went on before that, which leaves it from an earlier quarantine.
+    historyOf: async (record) => {
+      const closedAt = await tracker.lastClosed(record);
+      if (closedAt === undefined || !record.labels.includes(settings.quarantineLabel)) return { closedAt, staleLabel: false };
+      return { closedAt, staleLabel: !((await tracker.lastLabelled(record, settings.quarantineLabel)) > closedAt) };
+    },
   };
 };
 
@@ -762,11 +822,15 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 // How many of a record's occurrences, oldest first, count toward quarantine
 // at the time `now`, and on how many branches, as { occurrences, branches }.
-// The count starts again at the occurrence that last reopened the record, and
-// a run counts once, even when two of its jobs raced to record it.
-const towardQuarantine = (recorded, now) => {
+// The count starts again whenever the record is reopened, by the script or by
+// a person: it takes the occurrences dated after the record last closed, at
+// `closedAt`, from the one that last reopened it on. A run counts once, even
+// when two of its jobs raced to record it.
+const towardQuarantine = (recorded, now, closedAt = -Infinity) => {
   const sinceReopened = recorded.slice(Math.max(0, recorded.findLastIndex(({ reopened }) => reopened === true)));
-  const counting = sinceReopened.filter(({ date }) => now - Date.parse(date) <= QUARANTINE_DAYS * DAY_MS);
+  const counting = sinceReopened.filter(
+    ({ date }) => Date.parse(date) > closedAt && now - Date.parse(date) <= QUARANTINE_DAYS * DAY_MS,
+  );
   return {
     occurrences: new Set(counting.map(({ run }) => run)).size,
     branches: new Set(counting.map(({ branch }) => branch)).size,
@@ -819,10 +883,14 @@ const recordOccurrences = async (settings, records, identities, quarantine) => {
   const recordOne = async (identity) => {
     let record = records.of(identity);
     let recorded = [];
+    // A closed record's count starts at this occurrence, which reopens it. An
+    // open one's starts after it last closed.
+    let history = {};
     if (record) {
       recorded = occurrencesIn(await tracker.listComments(record));
+      if (record.open) history = await records.historyOf(record);
       if (recorded.some(({ run }) => run === settings.run)) {
-        return `Already recorded on [#${record.number}](${record.url}) for this run, so it counts once. ${countSentence(towardQuarantine(recorded, now))}`;
+        return `Already recorded on [#${record.number}](${record.url}) for this run, so it counts once. ${countSentence(towardQuarantine(recorded, now, history.closedAt))}`;
       }
     } else {
       record = await tracker.createRecord({
@@ -834,13 +902,16 @@ const recordOccurrences = async (settings, records, identities, quarantine) => {
     const reopened = !record.open;
     // A closed record isn't quarantined, so a label it kept would quarantine
     // the reopened record on one occurrence. The label comes off before the
-    // reopen, so a refusal between the two can't leave it quarantined.
-    const unquarantined = reopened && record.labels.includes(label);
+    // reopen, so a refusal between the two can't leave it quarantined. A label
+    // an open record kept from before it closed, as when a person reopened
+    // it, comes off too.
+    const unquarantined = (reopened && record.labels.includes(label)) || history.staleLabel;
     if (unquarantined) await tracker.removeLabel(record, label);
+    if (history.staleLabel) quarantine.count -= 1;
     if (reopened) await tracker.reopenRecord(record);
     const added = { ...occurrence, ...(reopened && { reopened }) };
     await tracker.addComment(record, occurrenceComment(added));
-    const count = towardQuarantine([...recorded, added], now);
+    const count = towardQuarantine([...recorded, added], now, history.closedAt);
     const labelCode = inlineCode(label);
     const said = [
       `Recorded on [#${record.number}](${record.url})${reopened ? ' after reopening it' : ''}${
@@ -848,7 +919,7 @@ const recordOccurrences = async (settings, records, identities, quarantine) => {
       }.`,
       countSentence(count),
     ];
-    if (records.quarantined(record)) {
+    if (records.quarantined(record) && !unquarantined) {
       said.push('Already quarantined.');
     } else if (qualifies(count) && quarantine.count < quarantine.allowed) {
       try {
@@ -884,11 +955,31 @@ if (problem) {
 const { buildFailures, stillFailing, occurrences, suite } = judge(settings);
 const records =
   stillFailing.length > 0 || occurrences.length > 0 ? await readRecords(settings) : flakyRecords(settings, {});
+// A quarantined test's failure is ignored, unless its quarantine label is left
+// from before its record last closed. When the record's history can't be read,
+// the label stands as the listing shows it.
 const ignored = [];
 for (const { identity, failure } of stillFailing) {
   const record = records.quarantinedOf(identity);
-  if (record) ignored.push(`${failure} Ignored, because its record [#${record.number}](${record.url}) is quarantined.`);
-  else buildFailures.push(failure);
+  if (!record) {
+    buildFailures.push(failure);
+    continue;
+  }
+  const link = `[#${record.number}](${record.url})`;
+  const history = await records
+    .historyOf(record)
+    .catch((error) => ({ unread: trackerProblem(error, "reading the record's history") }));
+  if (history.staleLabel) {
+    buildFailures.push(
+      `${failure} Its record ${link} carries the ${inlineCode(settings.quarantineLabel)} label from before it last closed, which no longer quarantines the test.`,
+    );
+  } else {
+    ignored.push(
+      `${failure} Ignored, because its record ${link} is quarantined${
+        history.unread ? `, though its history was not read to confirm the label went on after it last closed: ${history.unread}` : ''
+      }.`,
+    );
+  }
 }
 const unread =
   stillFailing.length > 0 && records.problem
