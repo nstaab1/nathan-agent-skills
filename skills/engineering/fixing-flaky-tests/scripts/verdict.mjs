@@ -147,8 +147,10 @@
 //      fit, then "… [", the first 12 hex digits of the SHA-256 of the JSON
 //      array [classname, name], and "]". Its body gives the identity in two
 //      lines, "- Classname: " and "- Name: ", each followed by the value as
-//      Markdown inline code, which reads back exactly by CommonMark's rules,
-//      unless the value holds a line break.
+//      Markdown inline code, which reads back exactly by CommonMark's rules.
+//      When those lines wouldn't read back as the identity exactly, as when a
+//      value holds a line break, which no inline code holds, the body leaves
+//      them out, and step 1 matches the record by its title.
 //   3. An open record: read its history, when it last closed and when the
 //      quarantine label last went on it.
 //   4. A record that already holds an occurrence with this --run: leave it.
@@ -834,15 +836,21 @@ const fromInlineCode = (code) => {
 };
 
 // A record's body gives its test's identity, which its title can't, since
-// two identities can share a title.
-const recordBody = ({ classname, name }) =>
-  [
-    'The flaky-test record for one test, kept by the verdict script. Each flake occurrence is a comment below.',
+// two identities can share a title. When its Classname and Name lines
+// wouldn't read back as the identity exactly, as when a value holds a line
+// break, which no inline code holds, the body leaves them out, and the record
+// is matched by its title.
+const recordBody = (identity) => {
+  const lead = 'The flaky-test record for one test, kept by the verdict script. Each flake occurrence is a comment below.';
+  const body = [lead, '', `- Classname: ${inlineCode(identity.classname)}`, `- Name: ${inlineCode(identity.name)}`, ''].join('\n');
+  if (identityIn(body)?.key === identity.key) return body;
+  return [
+    lead,
     '',
-    `- Classname: ${inlineCode(classname)}`,
-    `- Name: ${inlineCode(name)}`,
+    "The test's classname or name holds text this body can't give exactly, such as a line break, so the record's title stands for the test.",
     '',
   ].join('\n');
+};
 
 // The identity a record's body gives in its Classname and Name lines, as
 // recordBody writes them, or undefined when it gives none, as in a record a

@@ -422,6 +422,19 @@ trackerTest('a test whose title holds a line break or a tab gets a stable title 
     }
   }));
 
+trackerTest('a test whose name holds a backtick and a line break finds its own record again', ({ withTracker }) =>
+  withTracker({}, async (tracker) => {
+    const tests = [['spec/view.spec.ts', 'a`\nb']];
+    for (const run of ['1', '2']) {
+      const { code, output } = await runVerdict({ ...suite({ flaky: tests }), ...recordingTo(tracker, { run }) });
+      assert.equal(code, 0, output);
+    }
+    assert.deepEqual(
+      tracker.records.map((record) => occurrencesOn(record).map(({ run }) => run)),
+      [['1', '2']],
+    );
+  }));
+
 trackerTest('a test whose name holds backticks or starts and ends with a space finds its own record again', ({ withTracker }) =>
   withTracker({}, async (tracker) => {
     const tests = [['spec/view.spec.ts', '`render` keeps ``state``'], ['spec/view.spec.ts', ' padded ']];
