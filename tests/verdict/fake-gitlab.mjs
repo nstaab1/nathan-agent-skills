@@ -17,7 +17,13 @@
 // resource label events, each label added and removed, with their times, and
 // a job token can read neither. A record given to start with may give its
 // earlier `history`, as { action, label, date }, where action is closed,
-// reopened, labeled or unlabeled.
+// reopened, labeled or unlabeled, and its earlier `comments`, each a body or
+// { body, author }.
+//
+// `user` is the username of the access token's user, which GET /user answers
+// with and which writes the token's notes, system notes included. A job token
+// can't read /user. A comment given to start with is by the token's user
+// unless it names its author.
 //
 // Its `records` view and each logged request's `action` read the same as
 // fake-github.mjs's, so one test can check either tracker.
@@ -33,6 +39,7 @@ export const startFakeGitLab = async ({
   readOnly = false,
   refuse = () => false,
   records = [],
+  user = 'project_42_bot',
 } = {}) => {
   const issues = [];
   const requests = [];
@@ -52,9 +59,9 @@ export const startFakeGitLab = async ({
     resource_type: 'Issue',
   });
 
-  const note = (body, system = false) => {
+  const note = (body, system = false, author = user) => {
     const id = ++noteIds;
-    return { id, body, system, created_at: new Date(Date.UTC(2026, 0, 1) + id * 1000).toISOString() };
+    return { id, body, system, author, created_at: new Date(Date.UTC(2026, 0, 1) + id * 1000).toISOString() };
   };
   const addIssue = ({ title, body = '', state = 'open', labels = ['flaky-test'], comments = [], history = [] }) => {
     const issue = {
@@ -63,7 +70,7 @@ export const startFakeGitLab = async ({
       description: body,
       state: OPEN[state],
       labels: [...labels],
-      notes: comments.map((each) => note(each)),
+      notes: comments.map((each) => (typeof each === 'string' ? note(each) : note(each.body, false, each.author))),
       stateEvents: history.filter(({ action }) => STATES[action]).map(({ action, date }) => stateEvent(STATES[action], date)),
       labelEvents: history
         .filter(({ action }) => LABEL_ACTIONS[action])
@@ -92,10 +99,11 @@ export const startFakeGitLab = async ({
     labels: [...issue.labels],
     web_url: webUrl(issue),
   });
-  const noteJson = (issue, { id, body, system, created_at }) => ({
+  const noteJson = (issue, { id, body, system, author, created_at }) => ({
     id,
     body,
     system,
+    author: { username: author },
     created_at,
     noteable_type: 'Issue',
     noteable_iid: issue.iid,
@@ -182,6 +190,9 @@ export const startFakeGitLab = async ({
     }
     if (refuse({ method: req.method, path: url.pathname, action })) return send(res, 403, { message: '403 Forbidden' });
 
+    if (api === 'api' && version === 'v4' && projects === 'user' && id === undefined && req.method === 'GET') {
+      return send(res, 200, { id: 7, username: user });
+    }
     if (api !== 'api' || version !== 'v4' || projects !== 'projects') return send(res, 404, { error: '404 Not Found' });
     if (id !== repo && id !== String(projectId)) return send(res, 404, { message: '404 Project Not Found' });
     if (resource !== 'issues' || rest.length > 0) return send(res, 404, { error: '404 Not Found' });

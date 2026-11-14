@@ -76,6 +76,15 @@
 //                  On GitLab, to $CI_PIPELINE_URL.
 //   --flaky-label  The label every flaky-test record carries. Defaults to
 //                  flaky-test.
+//   --tracker-user The user the token posts as. Only the occurrences that
+//                  user wrote count, since anyone who can comment on a record
+//                  can write an occurrence's marker. Defaults to the user the
+//                  tracker's /user endpoint gives for the token: its login on
+//                  GitHub, its username on GitLab. GitHub refuses that
+//                  endpoint to a GitHub App's installation token, so there it
+//                  defaults to github-actions[bot], the user a job's own
+//                  $GITHUB_TOKEN posts as. For another GitHub App's token,
+//                  pass the app's bot user, such as my-app[bot].
 //
 // The token never comes from a flag, which keeps it out of logs and process
 // lists. It must be able to read and write issues. The test command and the
@@ -172,7 +181,7 @@
 // A record enters quarantine when, after an occurrence is recorded, its
 // occurrences that count number at least 3 and span at least 2 branches, and
 // the cap allows one more. The occurrences that count are read from the
-// record's markers, and are:
+// markers on the record that the user the script posts as wrote, and are:
 //   - those since the record was last reopened, by the script or a person:
 //     dated after it last closed, and from the last one holding
 //     "reopened":true on, that one included, so a fixed test starts a new
@@ -200,7 +209,8 @@
 // 100 of its label events when the record carries the quarantine label and
 // has closed before.
 //
-// Then, per occurrence: for a new record, a create and a comment. For an
+// Then, unless --tracker-user gives it, one request for the user the token
+// posts as. Per occurrence: for a new record, a create and a comment. For an
 // existing one, one request per 100 of its comments, its history when it is
 // open, a label removal when it kept the quarantine label from before a
 // close, a reopen when it was closed, then a comment. And one label request
@@ -222,13 +232,13 @@
 //
 //   <!-- verdict-occurrence {"date":"2026-11-13T17:47:05Z","branch":"main","job":"test","run":"4242","run_url":"https://github.com/acme/shop/actions/runs/4242"} -->
 //
-// A comment is an occurrence when one of its lines matches
-// /^<!-- verdict-occurrence (\{.*\}) -->$/ and the group parses as JSON. date
-// is UTC in ISO 8601, to the second, and every value is a string, except that
-// the occurrence that reopened its record also holds "reopened":true. Any <, >
-// or & in a value is written as \u003c, \u003e or \u0026, which JSON.parse
-// reads back, so no value can end the HTML comment. Later versions may add
-// keys, and these keys keep their meaning.
+// A comment is an occurrence when the user the script posts as wrote it, one
+// of its lines matches /^<!-- verdict-occurrence (\{.*\}) -->$/, and the group
+// parses as JSON. date is UTC in ISO 8601, to the second, and every value is
+// a string, except that the occurrence that reopened its record also holds
+// "reopened":true. Any <, > or & in a value is written as \u003c, \u003e or
+// \u0026, which JSON.parse reads back, so no value can end the HTML comment.
+// Later versions may add keys, and these keys keep their meaning.
 //
 // The run summary is Markdown: a "### Verdict: pass" or "### Verdict: fail"
 // heading; then, when the cap kept a test out of quarantine, a "> [!WARNING]"
@@ -242,7 +252,8 @@
 // bullet names the test as `<classname> <name>`, then links the record it was
 // recorded on, or says why it was not recorded. A recorded occurrence's bullet
 // then gives its count toward quarantine, such as "Quarantine count: 2
-// occurrences on 1 branch in 30 days (it takes 3 on at least 2).", and ends
+// occurrences on 1 branch in 30 days (it takes 3 on at least 2).", says how
+// many occurrences on the record someone else wrote, when any did, and ends
 // "Now quarantined", "Already quarantined" or "Not quarantined" when one of
 // those applies.
 import { spawnSync } from 'node:child_process';
@@ -269,6 +280,7 @@ const FLAGS = [
   '--quarantine-label',
   '--quarantine-cap',
   '--keep-token',
+  '--tracker-user',
 ];
 
 // A flag left out takes its default: the tracker's own, from TRACKERS, or
@@ -513,7 +525,7 @@ const judge = (settings, env) => {
 const TRACKER_TIMEOUT_MS = 30_000;
 
 // A tracker request that failed. Its message completes "Not recorded: " and
-// "Quarantine not read: ".
+// "Quarantine not read: ". `status` is the HTTP status of a refusal.
 class TrackerError extends Error {}
 
 // A tracker's REST API, sending these headers with every request. `call`
@@ -536,7 +548,10 @@ const restApi = (trackerUrl, headers) => {
     }
     if (!response.ok) {
       const reason = await reasonOf(response);
-      throw new TrackerError(`the tracker refused to ${doing} (HTTP ${response.status}${reason ? ` ${reason}` : ''})`);
+      throw Object.assign(
+        new TrackerError(`the tracker refused to ${doing} (HTTP ${response.status}${reason ? ` ${reason}` : ''})`),
+        { status: response.status },
+      );
     }
     const next = response.headers.get('link')?.match(/<([^>]+)>;\s*rel="next"/)?.[1];
     return { data: await response.json(), next };
@@ -572,7 +587,8 @@ const latest = (events) => (events.length > 0 ? Math.max(...events.map((event) =
 // The GitHub adapter: the tracker operations the script uses, over GitHub's
 // REST API. A record is { number, title, url, open, labels, body }.
 const githubTracker = ({ trackerUrl, repo, token }) => {
-  const issues = `${trackerUrl.replace(/\/+$/, '')}/repos/${repo}/issues`;
+  const api = trackerUrl.replace(/\/+$/, '');
+  const issues = `${api}/repos/${repo}/issues`;
   const { call, callAll } = restApi(trackerUrl, {
     accept: 'application/vnd.github+json',
     'x-github-api-version': '2022-11-28',
@@ -598,6 +614,17 @@ const githubTracker = ({ trackerUrl, repo, token }) => {
   });
 
   return {
+    // The login the token posts as. GitHub refuses /user to a GitHub App's
+    // installation token, such as a job's own $GITHUB_TOKEN, which posts as
+    // github-actions[bot].
+    poster: async () => {
+      try {
+        return (await call('read the user the token posts as', 'GET', `${api}/user`)).data.login;
+      } catch (error) {
+        if (error.status === 403) return 'github-actions[bot]';
+        throw error;
+      }
+    },
     // Every record carrying the flaky label, open or closed.
     listRecords: async (label) =>
       (await callAll('list the flaky-test records', `${issues}?labels=${encodeURIComponent(label)}&state=all&per_page=100`))
@@ -608,10 +635,11 @@ const githubTracker = ({ trackerUrl, repo, token }) => {
     reopenRecord: async (target) => {
       await call('reopen the record', 'PATCH', `${issues}/${target.number}`, { state: 'open' });
     },
-    // The bodies of every comment on the record, oldest first.
+    // Every comment on the record, oldest first, as { body, author }, where
+    // author is the login of the user who wrote it.
     listComments: async (target) =>
       (await callAll("read the record's comments", `${issues}/${target.number}/comments?per_page=100`)).map(
-        (comment) => comment.body,
+        (comment) => ({ body: comment.body, author: comment.user?.login }),
       ),
     addComment: async (target, body) => {
       await call('comment on the record', 'POST', `${issues}/${target.number}/comments`, { body });
@@ -633,7 +661,8 @@ const githubTracker = ({ trackerUrl, repo, token }) => {
 // The GitLab adapter: the same operations over GitLab's REST API v4. A
 // record's number is its issue's iid, and a comment is a note.
 const gitlabTracker = ({ trackerUrl, repo, token }) => {
-  const issues = `${trackerUrl.replace(/\/+$/, '')}/projects/${encodeURIComponent(repo)}/issues`;
+  const api = trackerUrl.replace(/\/+$/, '');
+  const issues = `${api}/projects/${encodeURIComponent(repo)}/issues`;
   const { call, callAll } = restApi(trackerUrl, token.headers);
 
   const record = (issue) => ({
@@ -646,6 +675,8 @@ const gitlabTracker = ({ trackerUrl, repo, token }) => {
   });
 
   return {
+    // The username of the user the token posts as.
+    poster: async () => (await call('read the user the token posts as', 'GET', `${api}/user`)).data.username,
     listRecords: async (label) =>
       (await callAll('list the flaky-test records', `${issues}?labels=${encodeURIComponent(label)}&state=all&per_page=100`)).map(
         record,
@@ -657,11 +688,12 @@ const gitlabTracker = ({ trackerUrl, repo, token }) => {
       await call('reopen the record', 'PUT', `${issues}/${target.number}`, { state_event: 'reopen' });
     },
     // GitLab lists notes newest first unless asked otherwise. Its own system
-    // notes, such as "reopened", come too, and hold no occurrence.
+    // notes, such as "reopened", come too, and hold no occurrence. A note's
+    // author is the username of the user who wrote it.
     listComments: async (target) =>
       (
         await callAll("read the record's comments", `${issues}/${target.number}/notes?sort=asc&order_by=created_at&per_page=100`)
-      ).map((note) => note.body),
+      ).map((note) => ({ body: note.body, author: note.author?.username })),
     addComment: async (target, body) => {
       await call('comment on the record', 'POST', `${issues}/${target.number}/notes`, { body });
     },
@@ -864,17 +896,23 @@ const occurrenceComment = (occurrence) =>
 
 const MARKER = /^<!-- verdict-occurrence (\{.*\}) -->$/m;
 
-// The flake occurrences recorded in these comment bodies, from their markers.
-const occurrencesIn = (comments) =>
-  comments.flatMap((body) => {
-    const found = body?.match(MARKER);
-    if (!found) return [];
+// The flake occurrences recorded in these comments, from their markers, as
+// { counted, ignored }: the occurrences `poster`, the user the script posts
+// as, wrote, and how many anyone else wrote. Anyone who can comment can write
+// a marker, so only the script's own count.
+const occurrencesIn = (comments, poster) => {
+  const found = comments.flatMap(({ body, author }) => {
+    const marker = body?.match(MARKER);
+    if (!marker) return [];
     try {
-      return [JSON.parse(found[1])];
+      return [{ author, occurrence: JSON.parse(marker[1]) }];
     } catch {
       return [];
     }
   });
+  const counted = found.filter(({ author }) => author === poster).map(({ occurrence }) => occurrence);
+  return { counted, ignored: found.length - counted.length };
+};
 
 // Quarantine --------------------------------------------------------------
 
@@ -930,6 +968,12 @@ const recordOccurrences = async (settings, records, identities, quarantine) => {
   }
   if (records.problem) return identities.map(() => `Not recorded: ${records.problem}.`);
   const { tracker } = records;
+  let poster = settings.trackerUser;
+  try {
+    poster ||= await tracker.poster();
+  } catch (error) {
+    return identities.map(() => `Not recorded: ${trackerProblem(error, 'reading the user the token posts as')}.`);
+  }
   const label = settings.quarantineLabel;
   const occurrence = {
     date: new Date().toISOString().replace(/\.\d+Z$/, 'Z'),
@@ -946,14 +990,19 @@ const recordOccurrences = async (settings, records, identities, quarantine) => {
   const recordOne = async (identity) => {
     let record = records.of(identity);
     let recorded = [];
+    let notCounted = '';
     // A closed record's count starts at this occurrence, which reopens it. An
     // open one's starts after it last closed.
     let history = {};
     if (record) {
-      recorded = occurrencesIn(await tracker.listComments(record));
+      const { counted, ignored } = occurrencesIn(await tracker.listComments(record), poster);
+      recorded = counted;
+      if (ignored > 0) {
+        notCounted = ` Not counted: ${plural(ignored, 'occurrence')} on the record written by someone other than ${inlineCode(poster)}, the user the script posts as.`;
+      }
       if (record.open) history = await records.historyOf(record);
       if (recorded.some(({ run }) => run === settings.run)) {
-        return `Already recorded on [#${record.number}](${record.url}) for this run, so it counts once. ${countSentence(towardQuarantine(recorded, now, history.closedAt))}`;
+        return `Already recorded on [#${record.number}](${record.url}) for this run, so it counts once. ${countSentence(towardQuarantine(recorded, now, history.closedAt))}${notCounted}`;
       }
     } else {
       record = await tracker.createRecord({
@@ -980,7 +1029,7 @@ const recordOccurrences = async (settings, records, identities, quarantine) => {
       `Recorded on [#${record.number}](${record.url})${reopened ? ' after reopening it' : ''}${
         unquarantined ? ` and took off its ${labelCode} label, left from before it closed` : ''
       }.`,
-      countSentence(count),
+      `${countSentence(count)}${notCounted}`,
     ];
     if (records.labelled(record) && !unquarantined) {
       said.push('Already quarantined.');

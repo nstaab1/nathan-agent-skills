@@ -9,7 +9,14 @@
 // an issue's events: each close, reopen, label added and label removed, with
 // its time. A record given to start with may give its earlier `history`, as
 // { action, label, date }, where action is closed, reopened, labeled or
-// unlabeled.
+// unlabeled, and its earlier `comments`, each a body or { body, author }.
+//
+// `user`, when given, is the login of the personal access token's user, which
+// GET /user answers with. Without it the token is a GitHub App's installation
+// token: like GitHub, it refuses GET /user with 403, and its comments are by
+// the app's bot user, `app`, which is github-actions[bot] for a job's own
+// token. A comment given to start with is by the token's user unless it names
+// its author.
 //
 // Its `records` view and each logged request's `action`, which says what the
 // request asks the tracker to do, read the same as fake-gitlab.mjs's, so one
@@ -36,14 +43,20 @@ export const startFakeGitHub = async ({
   readOnly = false,
   refuse = () => false,
   records = [],
+  user,
+  app = 'github-actions[bot]',
 } = {}) => {
   const issues = [];
   const requests = [];
   let commentIds = 0;
   let eventIds = 0;
   let base;
+  const poster = user ?? app;
 
-  const comment = (body) => ({ id: ++commentIds, body });
+  const comment = (given) => {
+    const { body, author = poster } = typeof given === 'string' ? { body: given } : given;
+    return { id: ++commentIds, body, author };
+  };
   // GitHub gives an event's time to the second.
   const event = ({ action, label, date = new Date().toISOString().replace(/\.\d+Z$/, 'Z') }) => ({
     id: ++eventIds,
@@ -83,7 +96,12 @@ export const startFakeGitHub = async ({
     labels: issue.labels.map((name) => ({ name })),
     html_url: `${base}/${repo}/issues/${issue.number}`,
   });
-  const commentJson = (issue, { id, body }) => ({ id, body, html_url: `${base}/${repo}/issues/${issue.number}#issuecomment-${id}` });
+  const commentJson = (issue, { id, body, author }) => ({
+    id,
+    body,
+    user: { login: author },
+    html_url: `${base}/${repo}/issues/${issue.number}#issuecomment-${id}`,
+  });
 
   const send = (res, status, data, headers = {}) => {
     res.writeHead(status, { 'content-type': 'application/json', ...headers });
@@ -121,6 +139,9 @@ export const startFakeGitHub = async ({
       return send(res, 403, { message: 'Resource not accessible by integration' });
     }
 
+    if (url.pathname === '/user' && req.method === 'GET') {
+      return user ? send(res, 200, { login: user }) : send(res, 403, { message: 'Resource not accessible by integration' });
+    }
     if (!url.pathname.startsWith(prefix)) return send(res, 404, { message: 'Not Found' });
     const issue = number && issues.find((each) => each.number === Number(number));
     if (number && !issue) return send(res, 404, { message: 'Not Found' });

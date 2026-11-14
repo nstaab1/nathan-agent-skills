@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runVerdict, runVerdictWith, junit, passed, failed, lineAbout, codeSpans, recordingTo, trackerTest, gitlab, suite, earlier, daysAgo } from './harness.mjs';
+import { runVerdict, runVerdictWith, junit, passed, failed, lineAbout, codeSpans, recordingTo, trackerTest, github, gitlab, suite, earlier, daysAgo } from './harness.mjs';
 
 // The failures this guards: a quarantined test that still fails the build; a
 // failure let through by a quarantine read from a closed record, or from a
@@ -112,6 +112,89 @@ trackerTest('the occurrence that makes three in 30 days across two branches puts
       const line = lineAbout(summary, CHECKOUT_TITLE);
       assert.match(line, /3 occurrences on 2 branches in 30 days/i);
       assert.match(line, /now quarantined/i);
+    },
+  ));
+
+// The same comments, written by someone who can comment but isn't CI.
+const byACommenter = (comments) => comments.map((body) => ({ body, author: 'a-commenter' }));
+
+trackerTest('occurrences written by anyone but the user the script posts as do not count toward quarantine, and the summary says so', ({ withTracker }) =>
+  withTracker({ records: [{ title: CHECKOUT_TITLE, comments: byACommenter(twoOccurrences()) }] }, async (tracker) => {
+    const { code, summary, output } = await runVerdict({
+      ...suite({ flaky: [CHECKOUT] }),
+      ...recordingTo(tracker, { branch: 'feature/cart' }),
+    });
+    assert.equal(code, 0, output);
+    assert.deepEqual(tracker.records[0].labels, ['flaky-test']);
+    const line = lineAbout(summary, CHECKOUT_TITLE);
+    assert.match(line, /1 occurrence on 1 branch in 30 days/i);
+    assert.match(line, /not counted: 2 occurrences/i);
+    assert.doesNotMatch(line, /now quarantined/i);
+  }));
+
+trackerTest('a reopened occurrence written by anyone but the user the script posts as does not start the count again', ({ withTracker }) =>
+  withTracker(
+    {
+      records: [
+        {
+          title: CHECKOUT_TITLE,
+          comments: [...twoOccurrences(), ...byACommenter([earlier({ daysAgo: 0.5, branch: 'main', reopened: true })])],
+        },
+      ],
+    },
+    async (tracker) => {
+      const { code, summary, output } = await runVerdict({
+        ...suite({ flaky: [CHECKOUT] }),
+        ...recordingTo(tracker, { branch: 'feature/cart' }),
+      });
+      assert.equal(code, 0, output);
+      assert.deepEqual(tracker.records[0].labels.toSorted(), ['flaky-test', 'quarantined']);
+      assert.match(lineAbout(summary, CHECKOUT_TITLE), /3 occurrences on 3 branches.*now quarantined/i);
+    },
+  ));
+
+test('on GitHub with a personal access token, only the occurrences its user wrote count toward quarantine', () =>
+  github.withTracker(
+    {
+      user: 'ci-user',
+      records: [
+        {
+          title: CHECKOUT_TITLE,
+          comments: [earlier({ daysAgo: 3, branch: 'main' }), { body: earlier({ daysAgo: 1, branch: 'feature/tax' }), author: 'github-actions[bot]' }],
+        },
+      ],
+    },
+    async (tracker) => {
+      const { code, summary, output } = await runVerdict({
+        ...suite({ flaky: [CHECKOUT] }),
+        ...recordingTo(tracker, { branch: 'feature/cart' }),
+      });
+      assert.equal(code, 0, output);
+      assert.deepEqual(tracker.records[0].labels, ['flaky-test']);
+      assert.match(lineAbout(summary, CHECKOUT_TITLE), /2 occurrences on 2 branches in 30 days/i);
+    },
+  ));
+
+test('on GitHub with another GitHub App\'s token, its occurrences count once --tracker-user names its bot user', () =>
+  github.withTracker(
+    { app: 'my-app[bot]', records: [{ title: CHECKOUT_TITLE, comments: twoOccurrences() }] },
+    async (tracker) => {
+      const { flags, env } = recordingTo(tracker, { branch: 'feature/cart', run: '1' });
+      const guessed = await runVerdict({ ...suite({ flaky: [CHECKOUT] }), flags, env });
+      assert.equal(guessed.code, 0, guessed.output);
+      assert.deepEqual(tracker.records[0].labels, ['flaky-test']);
+      assert.match(lineAbout(guessed.summary, CHECKOUT_TITLE), /not counted: 2 occurrences .*`github-actions\[bot\]`/i);
+
+      const named = recordingTo(tracker, { branch: 'feature/cart', run: '2' });
+      const told = await runVerdict({
+        ...suite({ flaky: [CHECKOUT] }),
+        flags: [...named.flags, '--tracker-user', 'my-app[bot]'],
+        env: named.env,
+      });
+      assert.equal(told.code, 0, told.output);
+      assert.deepEqual(tracker.records[0].labels.toSorted(), ['flaky-test', 'quarantined']);
+      assert.match(lineAbout(told.summary, CHECKOUT_TITLE), /4 occurrences on 3 branches.*now quarantined/i);
+      assert.equal(tracker.requests.filter(({ path }) => path === '/user').length, 1, 'no /user request once the flag names the user');
     },
   ));
 
