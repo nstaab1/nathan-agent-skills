@@ -205,78 +205,59 @@ const USAGE =
 
 // Settings ----------------------------------------------------------------
 
-// One row per flag. A flag left out takes the value `env` reads from the
-// environment, which GitHub Actions or GitLab CI sets, and then `fallback`.
-// Where the default differs by tracker, `env` or `fallback` holds one per
-// tracker, so --tracker comes first.
 const FLAGS = [
-  { flag: '--tracker', env: (env) => env.VERDICT_TRACKER || (env.GITLAB_CI ? 'gitlab' : undefined), fallback: 'github' },
-  { flag: '--results' },
-  { flag: '--rerun' },
-  { flag: '--summary', env: (env) => env.GITHUB_STEP_SUMMARY },
-  {
-    flag: '--tracker-url',
-    env: { github: (env) => env.GITHUB_API_URL, gitlab: (env) => env.CI_API_V4_URL },
-    fallback: { github: 'https://api.github.com', gitlab: 'https://gitlab.com/api/v4' },
-  },
-  { flag: '--repo', env: { github: (env) => env.GITHUB_REPOSITORY, gitlab: (env) => env.CI_PROJECT_PATH } },
-  {
-    flag: '--branch',
-    env: {
-      github: (env) => env.GITHUB_HEAD_REF || env.GITHUB_REF_NAME,
-      gitlab: (env) => env.CI_MERGE_REQUEST_SOURCE_BRANCH_NAME || env.CI_COMMIT_REF_NAME,
-    },
-  },
-  { flag: '--job', env: { github: (env) => env.GITHUB_JOB, gitlab: (env) => env.CI_JOB_NAME } },
-  { flag: '--run', env: { github: (env) => env.GITHUB_RUN_ID, gitlab: (env) => env.CI_PIPELINE_ID } },
-  {
-    flag: '--run-url',
-    env: {
-      github: (env) =>
-        env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY && env.GITHUB_RUN_ID
-          ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`
-          : undefined,
-      gitlab: (env) => env.CI_PIPELINE_URL,
-    },
-  },
-  { flag: '--flaky-label', fallback: 'flaky-test' },
-  { flag: '--quarantine-label', fallback: 'quarantined' },
-  { flag: '--quarantine-cap', fallback: '5%' },
+  '--tracker',
+  '--results',
+  '--rerun',
+  '--summary',
+  '--tracker-url',
+  '--repo',
+  '--branch',
+  '--job',
+  '--run',
+  '--run-url',
+  '--flaky-label',
+  '--quarantine-label',
+  '--quarantine-cap',
 ];
 
-// The variables each tracker's token is read from, the first one set winning.
-const TOKENS = {
-  github: ['VERDICT_TRACKER_TOKEN', 'GITHUB_TOKEN'],
-  gitlab: ['VERDICT_TRACKER_TOKEN', 'CI_JOB_TOKEN'],
+// A flag left out takes its default: the tracker's own, from TRACKERS, or
+// else one of these. Each is a function of the environment, which GitHub
+// Actions or GitLab CI sets.
+const DEFAULTS = {
+  '--tracker': (env) => env.VERDICT_TRACKER || (env.GITLAB_CI ? 'gitlab' : 'github'),
+  '--summary': (env) => env.GITHUB_STEP_SUMMARY,
+  '--flaky-label': () => 'flaky-test',
+  '--quarantine-label': () => 'quarantined',
+  '--quarantine-cap': () => '5%',
 };
 
-// --tracker-url is settings.trackerUrl.
-const key = (flag) => flag.slice(2).replace(/-(.)/g, (_, letter) => letter.toUpperCase());
-
-// A row's `env` or `fallback` for this tracker.
-const forTracker = (value, tracker) =>
-  value !== null && typeof value === 'object' ? (Object.hasOwn(value, tracker) ? value[tracker] : undefined) : value;
+// The setting a flag gives: --tracker-url gives settings.trackerUrl.
+const settingName = (flag) => flag.slice(2).replace(/-(.)/g, (_, letter) => letter.toUpperCase());
 
 // { settings } from the command line and environment, or { problem } saying
-// what is wrong.
+// what is wrong. settings.tracker names a TRACKERS entry, and settings.token,
+// when a variable holds one, is { variable, headers }.
 const readSettings = (argv, env) => {
   const split = argv.indexOf('--');
   const flags = split === -1 ? argv : argv.slice(0, split);
-  const settings = { command: split === -1 ? [] : argv.slice(split + 1) };
+  const given = {};
   for (let i = 0; i < flags.length; i += 2) {
-    if (!FLAGS.some((row) => row.flag === flags[i])) return { problem: `unknown argument ${flags[i]}` };
+    if (!FLAGS.includes(flags[i])) return { problem: `unknown argument ${flags[i]}` };
     if (flags[i + 1] === undefined) return { problem: `${flags[i]} needs a value` };
-    settings[key(flags[i])] = flags[i + 1];
+    given[flags[i]] = flags[i + 1];
   }
-  for (const row of FLAGS) {
-    settings[key(row.flag)] ??=
-      forTracker(row.env, settings.tracker)?.(env) || forTracker(row.fallback, settings.tracker);
+  const name = given['--tracker'] ?? DEFAULTS['--tracker'](env);
+  if (!Object.hasOwn(TRACKERS, name)) return { problem: `--tracker takes github or gitlab, not "${name}"` };
+  const tracker = TRACKERS[name];
+
+  const settings = { command: split === -1 ? [] : argv.slice(split + 1) };
+  for (const flag of FLAGS) {
+    settings[settingName(flag)] = given[flag] ?? (tracker.defaults[flag] ?? DEFAULTS[flag])?.(env);
   }
-  if (!Object.hasOwn(TOKENS, settings.tracker)) {
-    return { problem: `--tracker takes github or gitlab, not "${settings.tracker}"` };
-  }
-  settings.tokenFrom = TOKENS[settings.tracker].find((name) => env[name]);
-  settings.token = settings.tokenFrom && env[settings.tokenFrom];
+  const variable = Object.keys(tracker.tokens).find((each) => env[each]);
+  settings.token = variable && { variable, headers: tracker.tokens[variable](env[variable]) };
+
   if (!settings.results) return { problem: 'no --results file' };
   if (settings.command.length === 0) return { problem: 'no test command after --' };
   if (!/^\d+%?$/.test(settings.quarantineCap)) {
@@ -287,7 +268,7 @@ const readSettings = (argv, env) => {
 
 // JUnit XML ---------------------------------------------------------------
 
-const TOKEN =
+const XML_TOKEN =
   /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<!DOCTYPE[^>]*>|<\/([^\s>]+)\s*>|<([^\s/>!?]+)((?:\s+[^\s=/>]+\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>|[^<]+|</y;
 
 const decode = (text) =>
@@ -301,13 +282,23 @@ const decode = (text) =>
 
 const attributes = (text) => {
   const found = {};
-  for (const [, key, double, single] of text.matchAll(/([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
-    found[key] = decode(double ?? single);
+  for (const [, attribute, double, single] of text.matchAll(/([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
+    found[attribute] = decode(double ?? single);
   }
   return found;
 };
 
-// Every testcase in the file as { classname, name, outcome }, where outcome is
+// A test's identity: its classname and name, verbatim. `key` tells any two
+// identities apart. `title` names the test in the run summary and titles its
+// flaky-test record, `<classname> <name>`.
+const identityOf = (classname, name) => ({
+  classname,
+  name,
+  key: JSON.stringify([classname, name]),
+  title: classname ? `${classname} ${name}` : name,
+});
+
+// Every testcase in the file as { identity, outcome }, where outcome is
 // failed (it holds a failure or error element), skipped or passed. Null when
 // the file is not a whole JUnit XML document, such as one cut off mid-write.
 const parseJUnit = (xml) => {
@@ -315,8 +306,8 @@ const parseJUnit = (xml) => {
   const open = [];
   let root = null;
   let current = null;
-  TOKEN.lastIndex = 0;
-  for (let token; (token = TOKEN.exec(xml)); ) {
+  XML_TOKEN.lastIndex = 0;
+  for (let token; (token = XML_TOKEN.exec(xml)); ) {
     const [text, closing, opening, attrs, selfClosing] = token;
     if (opening) {
       if (open.length === 0) {
@@ -325,7 +316,7 @@ const parseJUnit = (xml) => {
       }
       if (opening === 'testcase') {
         const { classname = '', name = '' } = attributes(attrs);
-        current = { classname, name, outcome: 'passed', depth: open.length };
+        current = { identity: identityOf(classname, name), outcome: 'passed', depth: open.length };
         testcases.push(current);
       } else if (current && open.length === current.depth + 1) {
         if (opening === 'failure' || opening === 'error') current.outcome = 'failed';
@@ -347,17 +338,14 @@ const parseJUnit = (xml) => {
   return testcases;
 };
 
-// Test identity is classname plus name, verbatim.
-const identity = ({ classname, name }) => JSON.stringify([classname, name]);
-const display = ({ classname, name }) => (classname ? `${classname} ${name}` : name);
-
 // One identity can own several testcases in a file: pytest writes one per
 // retry and a second for a teardown error, and Vitest gives every case of a
 // test.each with no placeholder in its title the same name. The identity has
 // failed if any of them failed, else passed if any of them ran.
 const RANK = { failed: 2, passed: 1, skipped: 0 };
 
-// The file's testcases by identity, or null when there is no readable file.
+// The file's testcases by identity key, or null when there is no readable
+// file.
 const readResults = (path) => {
   let testcases;
   try {
@@ -368,9 +356,8 @@ const readResults = (path) => {
   if (!testcases) return null;
   const byIdentity = new Map();
   for (const testcase of testcases) {
-    const key = identity(testcase);
-    const seen = byIdentity.get(key);
-    if (!seen || RANK[testcase.outcome] > RANK[seen.outcome]) byIdentity.set(key, testcase);
+    const seen = byIdentity.get(testcase.identity.key);
+    if (!seen || RANK[testcase.outcome] > RANK[seen.outcome]) byIdentity.set(testcase.identity.key, testcase);
   }
   return byIdentity;
 };
@@ -379,16 +366,15 @@ const failedIn = (results) => [...results.values()].filter((testcase) => testcas
 
 // Attempts ----------------------------------------------------------------
 
-// Each attempt starts with no results file, so a run that writes none can't
-// be read as the one before it.
-const runTestCommand = (results, [file, ...args]) => {
+// Runs one attempt of `command`: the test command, a list of arguments run
+// without a shell, or the rerun command, a string the shell runs. Each
+// attempt starts with no results file, so a run that writes none can't be
+// read as the one before it.
+const runAttempt = (results, command) => {
   rmSync(results, { force: true });
-  return spawnSync(file, args, { stdio: 'inherit' });
-};
-
-const runRerunCommand = (results, command) => {
-  rmSync(results, { force: true });
-  return spawnSync(command, { stdio: 'inherit', shell: true });
+  return typeof command === 'string'
+    ? spawnSync(command, { stdio: 'inherit', shell: true })
+    : spawnSync(command[0], command.slice(1), { stdio: 'inherit' });
 };
 
 const exitOf = ({ status, signal, error }) => {
@@ -400,16 +386,16 @@ const exitOf = ({ status, signal, error }) => {
 // The verdict -------------------------------------------------------------
 
 // Runs the attempts and returns the reasons the build fails; the tests that
-// failed attempt 1 and didn't pass attempt 2, each with the sentence saying
-// so, which fail the build unless quarantined; and the tests with a flake
-// occurrence, which don't fail it. Also the size of the suite: how many tests
-// attempt 1's results file holds.
+// failed attempt 1 and didn't pass attempt 2, each as { identity, failure },
+// the sentence saying so, which fail the build unless quarantined; and the
+// identities of the tests with a flake occurrence, which don't fail it. Also
+// the size of the suite: how many tests attempt 1's results file holds.
 const judge = (settings) => {
   const buildFailures = [];
   const stillFailing = [];
   const occurrences = [];
 
-  const attempt1 = runTestCommand(settings.results, settings.command);
+  const attempt1 = runAttempt(settings.results, settings.command);
   const results1 = readResults(settings.results);
   if (!results1) {
     buildFailures.push(
@@ -427,9 +413,7 @@ const judge = (settings) => {
     return { buildFailures, stillFailing, occurrences, suite };
   }
 
-  const attempt2 = settings.rerun
-    ? runRerunCommand(settings.results, settings.rerun)
-    : runTestCommand(settings.results, settings.command);
+  const attempt2 = runAttempt(settings.results, settings.rerun || settings.command);
   const results2 = readResults(settings.results);
   if (!results2) {
     buildFailures.push(
@@ -439,16 +423,16 @@ const judge = (settings) => {
     buildFailures.push(`The rerun ${exitOf(attempt2)} with no failed test in the results file.`);
   }
 
-  for (const testcase of failures) {
-    const rerun = results2?.get(identity(testcase));
-    const test = `\`${display(testcase)}\``;
+  for (const { identity } of failures) {
+    const rerun = results2?.get(identity.key);
+    const test = `\`${identity.title}\``;
     if (rerun?.outcome === 'passed') {
-      occurrences.push(testcase);
+      occurrences.push(identity);
     } else if (rerun?.outcome === 'failed') {
-      stillFailing.push({ testcase, failure: `Failed on both attempts: ${test}.` });
+      stillFailing.push({ identity, failure: `Failed on both attempts: ${test}.` });
     } else {
       stillFailing.push({
-        testcase,
+        identity,
         failure: `No result on attempt 2: ${test} failed on attempt 1 and the rerun did not report it.`,
       });
     }
@@ -519,8 +503,8 @@ const githubTracker = ({ trackerUrl, repo, token }) => {
   const issues = `${trackerUrl.replace(/\/+$/, '')}/repos/${repo}/issues`;
   const { call, callAll } = restApi(trackerUrl, {
     accept: 'application/vnd.github+json',
-    authorization: `Bearer ${token}`,
     'x-github-api-version': '2022-11-28',
+    ...token.headers,
   });
 
   const record = (issue) => ({
@@ -561,11 +545,9 @@ const githubTracker = ({ trackerUrl, repo, token }) => {
 
 // The GitLab adapter: the same operations over GitLab's REST API v4. A
 // record's number is its issue's iid, and a comment is a note.
-const gitlabTracker = ({ trackerUrl, repo, token, tokenFrom }) => {
+const gitlabTracker = ({ trackerUrl, repo, token }) => {
   const issues = `${trackerUrl.replace(/\/+$/, '')}/projects/${encodeURIComponent(repo)}/issues`;
-  const { call, callAll } = restApi(trackerUrl, {
-    [tokenFrom === 'CI_JOB_TOKEN' ? 'job-token' : 'private-token']: token,
-  });
+  const { call, callAll } = restApi(trackerUrl, token.headers);
 
   const record = (issue) => ({
     number: issue.iid,
@@ -604,29 +586,82 @@ const gitlabTracker = ({ trackerUrl, repo, token, tokenFrom }) => {
   };
 };
 
-const ADAPTERS = { github: githubTracker, gitlab: gitlabTracker };
+const bearer = (token) => ({ authorization: `Bearer ${token}` });
+
+// Each tracker the script supports: the defaults of the flags whose default
+// depends on it, the variables its token is read from, the first one set
+// winning, with the headers each one is sent in, and its adapter.
+const TRACKERS = {
+  github: {
+    defaults: {
+      '--tracker-url': (env) => env.GITHUB_API_URL || 'https://api.github.com',
+      '--repo': (env) => env.GITHUB_REPOSITORY,
+      '--branch': (env) => env.GITHUB_HEAD_REF || env.GITHUB_REF_NAME,
+      '--job': (env) => env.GITHUB_JOB,
+      '--run': (env) => env.GITHUB_RUN_ID,
+      '--run-url': (env) =>
+        env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY && env.GITHUB_RUN_ID
+          ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`
+          : undefined,
+    },
+    tokens: { VERDICT_TRACKER_TOKEN: bearer, GITHUB_TOKEN: bearer },
+    adapter: githubTracker,
+  },
+  gitlab: {
+    defaults: {
+      '--tracker-url': (env) => env.CI_API_V4_URL || 'https://gitlab.com/api/v4',
+      '--repo': (env) => env.CI_PROJECT_PATH,
+      '--branch': (env) => env.CI_MERGE_REQUEST_SOURCE_BRANCH_NAME || env.CI_COMMIT_REF_NAME,
+      '--job': (env) => env.CI_JOB_NAME,
+      '--run': (env) => env.CI_PIPELINE_ID,
+      '--run-url': (env) => env.CI_PIPELINE_URL,
+    },
+    tokens: {
+      VERDICT_TRACKER_TOKEN: (token) => ({ 'private-token': token }),
+      CI_JOB_TOKEN: (token) => ({ 'job-token': token }),
+    },
+    adapter: gitlabTracker,
+  },
+};
 
 // The settings named by these flags, and the token, that are missing.
 const lacking = (settings, flags) => [
-  ...flags.filter((flag) => !settings[key(flag)]),
-  ...(settings.token ? [] : [`a token in ${TOKENS[settings.tracker].join(' or ')}`]),
+  ...flags.filter((flag) => !settings[settingName(flag)]),
+  ...(settings.token ? [] : [`a token in ${Object.keys(TRACKERS[settings.tracker].tokens).join(' or ')}`]),
 ];
 
 // What went wrong with the tracker, as a phrase that completes "Not recorded: ".
 const trackerProblem = (error, doing) =>
   error instanceof TrackerError ? error.message : `the script failed while ${doing} (${error.message})`;
 
-// The tracker and every flaky-test record, read once per job, or { problem }
-// saying why they can't be read. One listing serves both the quarantine list
-// and recording.
+// The job's flaky-test records: every record carrying the flaky label, open
+// or closed, and the tracker that holds them, read once per job. One listing
+// serves both the quarantine list and recording. When they can't be read,
+// `problem` says why, and the job has no records.
+const flakyRecords = (settings, { tracker, list = [], problem }) => {
+  const quarantined = (record) => record.open && record.labels.includes(settings.quarantineLabel);
+  const matching = (identity) => list.filter((record) => record.title === identity.title);
+  return {
+    tracker,
+    problem,
+    // A record is quarantined while it is open and carries the quarantine label.
+    quarantined,
+    quarantinedCount: list.filter(quarantined).length,
+    // The test's record, if it has one.
+    of: (identity) => matching(identity)[0],
+    // The test's quarantined record, if it has one.
+    quarantinedOf: (identity) => matching(identity).find(quarantined),
+  };
+};
+
 const readRecords = async (settings) => {
   const missing = lacking(settings, ['--repo']);
-  if (missing.length > 0) return { problem: `the tracker settings lack ${listOf(missing)}` };
-  const tracker = ADAPTERS[settings.tracker](settings);
+  if (missing.length > 0) return flakyRecords(settings, { problem: `the tracker settings lack ${listOf(missing)}` });
+  const tracker = TRACKERS[settings.tracker].adapter(settings);
   try {
-    return { tracker, records: await tracker.listRecords(settings.flakyLabel) };
+    return flakyRecords(settings, { tracker, list: await tracker.listRecords(settings.flakyLabel) });
   } catch (error) {
-    return { problem: trackerProblem(error, 'reading the records') };
+    return flakyRecords(settings, { problem: trackerProblem(error, 'reading the records') });
   }
 };
 
@@ -638,7 +673,7 @@ const listOf = (items) =>
 const plural = (count, word, words = `${word}s`) => `${count} ${count === 1 ? word : words}`;
 
 // Markdown inline code that holds any text, backticks included.
-const code = (text) => {
+const inlineCode = (text) => {
   const fence = '`'.repeat(Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length)) + 1);
   const pad = /^`|`$/.test(text) ? ' ' : '';
   return `${fence}${pad}${text}${pad}${fence}`;
@@ -648,8 +683,8 @@ const recordBody = ({ classname, name }) =>
   [
     'The flaky-test record for one test, kept by the verdict script. Each flake occurrence is a comment below.',
     '',
-    `- Classname: ${code(classname)}`,
-    `- Name: ${code(name)}`,
+    `- Classname: ${inlineCode(classname)}`,
+    `- Name: ${inlineCode(name)}`,
     '',
   ].join('\n');
 
@@ -663,8 +698,8 @@ const occurrenceComment = (occurrence) =>
     'Flake occurrence: failed on attempt 1 and passed on attempt 2.',
     '',
     `- Date: ${occurrence.date}`,
-    `- Branch: ${code(occurrence.branch)}`,
-    `- Job: ${code(occurrence.job)}`,
+    `- Branch: ${inlineCode(occurrence.branch)}`,
+    `- Job: ${inlineCode(occurrence.job)}`,
     `- Run: ${occurrence.run_url}`,
     '',
     ...(occurrence.reopened ? ['This occurrence reopened the record.', ''] : []),
@@ -691,13 +726,6 @@ const QUARANTINE_OCCURRENCES = 3;
 const QUARANTINE_BRANCHES = 2;
 const QUARANTINE_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-// A record is quarantined while it is open and carries the quarantine label.
-const isQuarantined = (settings, record) => record.open && record.labels.includes(settings.quarantineLabel);
-
-// The quarantined record of this test, if any.
-const quarantinedRecord = (settings, records, testcase) =>
-  records?.find((record) => record.title === display(testcase) && isQuarantined(settings, record));
 
 // How many of a record's occurrences, oldest first, count toward quarantine
 // at the time `now`, and on how many branches, as { occurrences, branches }.
@@ -734,14 +762,15 @@ const capOf = (cap, size) => {
 // per test, the sentence the run summary gives about it. `quarantine` holds
 // the cap's { allowed, explained }, the count of quarantined records, which
 // grows as this job quarantines more, and the cap warnings, as `capped`.
-const recordOccurrences = async (settings, { tracker, records, problem }, tests, quarantine) => {
-  if (tests.length === 0) return [];
+const recordOccurrences = async (settings, records, identities, quarantine) => {
+  if (identities.length === 0) return [];
   const missing = lacking(settings, ['--repo', '--branch', '--job', '--run', '--run-url']);
   if (missing.length > 0) {
-    return tests.map(() => `Not recorded: the tracker settings lack ${listOf(missing)}.`);
+    return identities.map(() => `Not recorded: the tracker settings lack ${listOf(missing)}.`);
   }
-  if (problem) return tests.map(() => `Not recorded: ${problem}.`);
-  const notRecorded = (error) => `Not recorded: ${trackerProblem(error, 'recording')}.`;
+  if (records.problem) return identities.map(() => `Not recorded: ${records.problem}.`);
+  const { tracker } = records;
+  const label = settings.quarantineLabel;
   const occurrence = {
     date: new Date().toISOString().replace(/\.\d+Z$/, 'Z'),
     branch: settings.branch,
@@ -749,67 +778,66 @@ const recordOccurrences = async (settings, { tracker, records, problem }, tests,
     run: settings.run,
     run_url: settings.runUrl,
   };
-  const said = [];
-  for (const testcase of tests) {
-    said.push(await recordOne(settings, tracker, records, testcase, occurrence, quarantine).catch(notRecorded));
-  }
-  return said;
-};
-
-// Records one test's flake occurrence and returns what the summary says of it.
-// When the occurrence brings the record to quarantine, it applies the
-// quarantine label if the cap allows, and adds to quarantine.capped if not.
-const recordOne = async (settings, tracker, records, testcase, occurrence, quarantine) => {
-  const title = display(testcase);
   const now = Date.parse(occurrence.date);
-  let record = records.find((each) => each.title === title);
-  let recorded = [];
-  if (record) {
-    recorded = occurrencesIn(await tracker.listComments(record));
-    if (recorded.some(({ run }) => run === settings.run)) {
-      return `Already recorded on [#${record.number}](${record.url}) for this run, so it counts once. ${countSentence(towardQuarantine(recorded, now))}`;
+
+  // Records one test's flake occurrence and returns what the summary says of
+  // it. When the occurrence brings the record to quarantine, it applies the
+  // quarantine label if the cap allows, and adds to quarantine.capped if not.
+  const recordOne = async (identity) => {
+    let record = records.of(identity);
+    let recorded = [];
+    if (record) {
+      recorded = occurrencesIn(await tracker.listComments(record));
+      if (recorded.some(({ run }) => run === settings.run)) {
+        return `Already recorded on [#${record.number}](${record.url}) for this run, so it counts once. ${countSentence(towardQuarantine(recorded, now))}`;
+      }
+    } else {
+      record = await tracker.createRecord({
+        title: identity.title,
+        body: recordBody(identity),
+        labels: [settings.flakyLabel, 'ready-for-agent'],
+      });
     }
-  } else {
-    record = await tracker.createRecord({
-      title,
-      body: recordBody(testcase),
-      labels: [settings.flakyLabel, 'ready-for-agent'],
-    });
-  }
-  const reopened = !record.open;
-  // A closed record isn't quarantined, so a label it kept would quarantine
-  // the reopened record on one occurrence. The label comes off before the
-  // reopen, so a refusal between the two can't leave it quarantined.
-  const unquarantined = reopened && record.labels.includes(settings.quarantineLabel);
-  if (unquarantined) await tracker.removeLabel(record, settings.quarantineLabel);
-  if (reopened) await tracker.reopenRecord(record);
-  const added = { ...occurrence, ...(reopened && { reopened }) };
-  await tracker.addComment(record, occurrenceComment(added));
-  const count = towardQuarantine([...recorded, added], now);
-  const label = code(settings.quarantineLabel);
-  const said = [
-    `Recorded on [#${record.number}](${record.url})${reopened ? ' after reopening it' : ''}${
-      unquarantined ? ` and took off its ${label} label, left from before it closed` : ''
-    }.`,
-    countSentence(count),
-  ];
-  if (isQuarantined(settings, record)) {
-    said.push('Already quarantined.');
-  } else if (qualifies(count) && quarantine.count < quarantine.allowed) {
-    try {
-      await tracker.addLabel(record, settings.quarantineLabel);
-      quarantine.count += 1;
-      said.push(`Now quarantined: the record carries the ${label} label, so the test's failures no longer fail the build.`);
-    } catch (error) {
-      said.push(`Not quarantined: ${trackerProblem(error, 'quarantining')}.`);
+    const reopened = !record.open;
+    // A closed record isn't quarantined, so a label it kept would quarantine
+    // the reopened record on one occurrence. The label comes off before the
+    // reopen, so a refusal between the two can't leave it quarantined.
+    const unquarantined = reopened && record.labels.includes(label);
+    if (unquarantined) await tracker.removeLabel(record, label);
+    if (reopened) await tracker.reopenRecord(record);
+    const added = { ...occurrence, ...(reopened && { reopened }) };
+    await tracker.addComment(record, occurrenceComment(added));
+    const count = towardQuarantine([...recorded, added], now);
+    const labelCode = inlineCode(label);
+    const said = [
+      `Recorded on [#${record.number}](${record.url})${reopened ? ' after reopening it' : ''}${
+        unquarantined ? ` and took off its ${labelCode} label, left from before it closed` : ''
+      }.`,
+      countSentence(count),
+    ];
+    if (records.quarantined(record)) {
+      said.push('Already quarantined.');
+    } else if (qualifies(count) && quarantine.count < quarantine.allowed) {
+      try {
+        await tracker.addLabel(record, label);
+        quarantine.count += 1;
+        said.push(`Now quarantined: the record carries the ${labelCode} label, so the test's failures no longer fail the build.`);
+      } catch (error) {
+        said.push(`Not quarantined: ${trackerProblem(error, 'quarantining')}.`);
+      }
+    } else if (qualifies(count)) {
+      quarantine.capped.push(
+        `The quarantine cap kept \`${identity.title}\` ([#${record.number}](${record.url})) out of quarantine: ${plural(quarantine.count, 'test is', 'tests are')} already quarantined, and the cap allows ${quarantine.explained}. Its failures still fail the build until a quarantined test is fixed or the cap is raised.`,
+      );
+      said.push('Not quarantined: the quarantine cap is reached, as the warning above says.');
     }
-  } else if (qualifies(count)) {
-    quarantine.capped.push(
-      `The quarantine cap kept \`${title}\` ([#${record.number}](${record.url})) out of quarantine: ${plural(quarantine.count, 'test is', 'tests are')} already quarantined, and the cap allows ${quarantine.explained}. Its failures still fail the build until a quarantined test is fixed or the cap is raised.`,
-    );
-    said.push('Not quarantined: the quarantine cap is reached, as the warning above says.');
-  }
-  return said.join(' ');
+    return said.join(' ');
+  };
+
+  const notRecorded = (error) => `Not recorded: ${trackerProblem(error, 'recording')}.`;
+  const said = [];
+  for (const identity of identities) said.push(await recordOne(identity).catch(notRecorded));
+  return said;
 };
 
 // Main --------------------------------------------------------------------
@@ -821,23 +849,20 @@ if (problem) {
 }
 
 const { buildFailures, stillFailing, occurrences, suite } = judge(settings);
-const tracked = stillFailing.length > 0 || occurrences.length > 0 ? await readRecords(settings) : {};
+const records =
+  stillFailing.length > 0 || occurrences.length > 0 ? await readRecords(settings) : flakyRecords(settings, {});
 const ignored = [];
-for (const { testcase, failure } of stillFailing) {
-  const record = quarantinedRecord(settings, tracked.records, testcase);
+for (const { identity, failure } of stillFailing) {
+  const record = records.quarantinedOf(identity);
   if (record) ignored.push(`${failure} Ignored, because its record [#${record.number}](${record.url}) is quarantined.`);
   else buildFailures.push(failure);
 }
 const unread =
-  stillFailing.length > 0 && tracked.problem
-    ? [`Quarantine not read: ${tracked.problem}, so no test is treated as quarantined.`]
+  stillFailing.length > 0 && records.problem
+    ? [`Quarantine not read: ${records.problem}, so no test is treated as quarantined.`]
     : [];
-const quarantine = {
-  ...capOf(settings.quarantineCap, suite),
-  count: tracked.records?.filter((record) => isQuarantined(settings, record)).length ?? 0,
-  capped: [],
-};
-const recorded = await recordOccurrences(settings, tracked, occurrences, quarantine);
+const quarantine = { ...capOf(settings.quarantineCap, suite), count: records.quarantinedCount, capped: [] };
+const recorded = await recordOccurrences(settings, records, occurrences, quarantine);
 const pass = buildFailures.length === 0;
 const summary = [
   `### Verdict: ${pass ? 'pass' : 'fail'}`,
@@ -847,8 +872,7 @@ const summary = [
     : []),
   ...[...buildFailures, ...unread, ...ignored].map((line) => `- ${line}`),
   ...occurrences.map(
-    (testcase, i) =>
-      `- Flake occurrence: \`${display(testcase)}\` failed on attempt 1 and passed on attempt 2. ${recorded[i]}`,
+    (identity, i) => `- Flake occurrence: \`${identity.title}\` failed on attempt 1 and passed on attempt 2. ${recorded[i]}`,
   ),
   '',
 ].join('\n');
